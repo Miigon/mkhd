@@ -1,5 +1,5 @@
-#ifndef SKHD_CARBON_H
-#define SKHD_CARBON_H
+#ifndef MKHD_CARBON_H
+#define MKHD_CARBON_H
 
 #include <Carbon/Carbon.h>
 

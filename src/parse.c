@@ -680,7 +680,7 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 
             parser_destroy(&directive_parser);
         } else {
-            warn("skhd: could not open file '%s' from load directive #%d:%d\n", load.file, load.option.line, load.option.cursor);
+            warn("mkhd: could not open file '%s' from load directive #%d:%d\n", load.file, load.option.line, load.option.cursor);
         }
 
         free(load.file);

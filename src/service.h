@@ -7,16 +7,16 @@
 #define MAXLEN 512
 
 #define _PATH_LAUNCHCTL   "/bin/launchctl"
-#define _NAME_SKHD_PLIST "com.koekeishiya.skhd"
-#define _PATH_SKHD_PLIST "%s/Library/LaunchAgents/"_NAME_SKHD_PLIST".plist"
+#define _NAME_MKHD_PLIST "com.koekeishiya.mkhd"
+#define _PATH_MKHD_PLIST "%s/Library/LaunchAgents/"_NAME_MKHD_PLIST".plist"
 
-#define _SKHD_PLIST \
+#define _MKHD_PLIST \
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" \
     "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" \
     "<plist version=\"1.0\">\n" \
     "<dict>\n" \
     "    <key>Label</key>\n" \
-    "    <string>"_NAME_SKHD_PLIST"</string>\n" \
+    "    <string>"_NAME_MKHD_PLIST"</string>\n" \
     "    <key>ProgramArguments</key>\n" \
     "    <array>\n" \
     "        <string>%s</string>\n" \
@@ -36,9 +36,9 @@
     " 	     <true/>\n" \
     "    </dict>\n" \
     "    <key>StandardOutPath</key>\n" \
-    "    <string>/tmp/skhd_%s.out.log</string>\n" \
+    "    <string>/tmp/mkhd_%s.out.log</string>\n" \
     "    <key>StandardErrorPath</key>\n" \
-    "    <string>/tmp/skhd_%s.err.log</string>\n" \
+    "    <string>/tmp/mkhd_%s.err.log</string>\n" \
     "    <key>ProcessType</key>\n" \
     "    <string>Interactive</string>\n" \
     "    <key>Nice</key>\n" \
@@ -104,17 +104,17 @@ static char *populate_plist_path(void)
     char *home = home_ref ? cfstring_copy(home_ref) : NULL;
 
     if (!home) {
-        error("skhd: unable to retrieve home directory! abort..\n");
+        error("mkhd: unable to retrieve home directory! abort..\n");
     }
 
-    int size = strlen(_PATH_SKHD_PLIST)-2 + strlen(home) + 1;
+    int size = strlen(_PATH_MKHD_PLIST)-2 + strlen(home) + 1;
     char *result = malloc(size);
     if (!result) {
-        error("skhd: could not allocate memory for plist path! abort..\n");
+        error("mkhd: could not allocate memory for plist path! abort..\n");
     }
 
     memset(result, 0, size);
-    snprintf(result, size, _PATH_SKHD_PLIST, home);
+    snprintf(result, size, _PATH_MKHD_PLIST, home);
 
     return result;
 }
@@ -123,28 +123,28 @@ static char *populate_plist(int *length)
 {
     char *user = getenv("USER");
     if (!user) {
-        error("skhd: 'env USER' not set! abort..\n");
+        error("mkhd: 'env USER' not set! abort..\n");
     }
 
     char *path_env = getenv("PATH");
     if (!path_env) {
-        error("skhd: 'env PATH' not set! abort..\n");
+        error("mkhd: 'env PATH' not set! abort..\n");
     }
 
     char exe_path[4096];
     unsigned int exe_path_size = sizeof(exe_path);
     if (_NSGetExecutablePath(exe_path, &exe_path_size) < 0) {
-        error("skhd: unable to retrieve path of executable! abort..\n");
+        error("mkhd: unable to retrieve path of executable! abort..\n");
     }
 
-    int size = strlen(_SKHD_PLIST)-8 + strlen(exe_path) + strlen(path_env) + (2*strlen(user)) + 1;
+    int size = strlen(_MKHD_PLIST)-8 + strlen(exe_path) + strlen(path_env) + (2*strlen(user)) + 1;
     char *result = malloc(size);
     if (!result) {
-        error("skhd: could not allocate memory for plist contents! abort..\n");
+        error("mkhd: could not allocate memory for plist contents! abort..\n");
     }
 
     memset(result, 0, size);
-    snprintf(result, size, _SKHD_PLIST, exe_path, path_env, user, user);
+    snprintf(result, size, _MKHD_PLIST, exe_path, path_env, user, user);
     *length = size-1;
 
     return result;
@@ -162,7 +162,7 @@ static inline bool directory_exists(char *filename)
     return S_ISDIR(buffer.st_mode);
 }
 
-static inline void ensure_directory_exists(char *skhd_plist_path)
+static inline void ensure_directory_exists(char *mkhd_plist_path)
 {
     //
     // NOTE(koekeishiya): Temporarily remove filename.
@@ -171,11 +171,11 @@ static inline void ensure_directory_exists(char *skhd_plist_path)
     // the result..
     //
 
-    char *last_slash = strrchr(skhd_plist_path, '/');
+    char *last_slash = strrchr(mkhd_plist_path, '/');
     *last_slash = '\0';
 
-    if (!directory_exists(skhd_plist_path)) {
-        mkdir(skhd_plist_path, 0755);
+    if (!directory_exists(mkhd_plist_path)) {
+        mkdir(mkhd_plist_path, 0755);
     }
 
     //
@@ -185,16 +185,16 @@ static inline void ensure_directory_exists(char *skhd_plist_path)
     *last_slash = '/';
 }
 
-static int service_install_internal(char *skhd_plist_path)
+static int service_install_internal(char *mkhd_plist_path)
 {
-    int skhd_plist_length;
-    char *skhd_plist = populate_plist(&skhd_plist_length);
-    ensure_directory_exists(skhd_plist_path);
+    int mkhd_plist_length;
+    char *mkhd_plist = populate_plist(&mkhd_plist_length);
+    ensure_directory_exists(mkhd_plist_path);
 
-    FILE *handle = fopen(skhd_plist_path, "w");
+    FILE *handle = fopen(mkhd_plist_path, "w");
     if (!handle) return 1;
 
-    size_t bytes = fwrite(skhd_plist, skhd_plist_length, 1, handle);
+    size_t bytes = fwrite(mkhd_plist, mkhd_plist_length, 1, handle);
     int result = bytes == 1 ? 0 : 1;
     fclose(handle);
 
@@ -205,40 +205,40 @@ static bool file_exists(char *filename);
 
 static int service_install(void)
 {
-    char *skhd_plist_path = populate_plist_path();
+    char *mkhd_plist_path = populate_plist_path();
 
-    if (file_exists(skhd_plist_path)) {
-        error("skhd: service file '%s' is already installed! abort..\n", skhd_plist_path);
+    if (file_exists(mkhd_plist_path)) {
+        error("mkhd: service file '%s' is already installed! abort..\n", mkhd_plist_path);
     }
 
-    return service_install_internal(skhd_plist_path);
+    return service_install_internal(mkhd_plist_path);
 }
 
 static int service_uninstall(void)
 {
-    char *skhd_plist_path = populate_plist_path();
+    char *mkhd_plist_path = populate_plist_path();
 
-    if (!file_exists(skhd_plist_path)) {
-        error("skhd: service file '%s' is not installed! abort..\n", skhd_plist_path);
+    if (!file_exists(mkhd_plist_path)) {
+        error("mkhd: service file '%s' is not installed! abort..\n", mkhd_plist_path);
     }
 
-    return unlink(skhd_plist_path) == 0 ? 0 : 1;
+    return unlink(mkhd_plist_path) == 0 ? 0 : 1;
 }
 
 static int service_start(void)
 {
-    char *skhd_plist_path = populate_plist_path();
-    if (!file_exists(skhd_plist_path)) {
-        warn("skhd: service file '%s' is not installed! attempting installation..\n", skhd_plist_path);
+    char *mkhd_plist_path = populate_plist_path();
+    if (!file_exists(mkhd_plist_path)) {
+        warn("mkhd: service file '%s' is not installed! attempting installation..\n", mkhd_plist_path);
 
-        int result = service_install_internal(skhd_plist_path);
+        int result = service_install_internal(mkhd_plist_path);
         if (result) {
-            error("skhd: service file '%s' could not be installed! abort..\n", skhd_plist_path);
+            error("mkhd: service file '%s' could not be installed! abort..\n", mkhd_plist_path);
         }
     }
 
     char service_target[MAXLEN];
-    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_SKHD_PLIST);
+    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_MKHD_PLIST);
 
     char domain_target[MAXLEN];
     snprintf(domain_target, sizeof(domain_target), "gui/%d", getuid());
@@ -267,7 +267,7 @@ static int service_start(void)
         // This will also start the program **iff* RunAtLoad is set to true.
         //
 
-        const char *const args2[] = { _PATH_LAUNCHCTL, "bootstrap", domain_target, skhd_plist_path, NULL };
+        const char *const args2[] = { _PATH_LAUNCHCTL, "bootstrap", domain_target, mkhd_plist_path, NULL };
         return safe_exec((char *const*)args2, false);
     } else {
 
@@ -284,13 +284,13 @@ static int service_start(void)
 
 static int service_restart(void)
 {
-    char *skhd_plist_path = populate_plist_path();
-    if (!file_exists(skhd_plist_path)) {
-        error("skhd: service file '%s' is not installed! abort..\n", skhd_plist_path);
+    char *mkhd_plist_path = populate_plist_path();
+    if (!file_exists(mkhd_plist_path)) {
+        error("mkhd: service file '%s' is not installed! abort..\n", mkhd_plist_path);
     }
 
     char service_target[MAXLEN];
-    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_SKHD_PLIST);
+    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_MKHD_PLIST);
 
     const char *const args[] = { _PATH_LAUNCHCTL, "kickstart", "-k", service_target, NULL };
     return safe_exec((char *const*)args, false);
@@ -298,13 +298,13 @@ static int service_restart(void)
 
 static int service_stop(void)
 {
-    char *skhd_plist_path = populate_plist_path();
-    if (!file_exists(skhd_plist_path)) {
-        error("skhd: service file '%s' is not installed! abort..\n", skhd_plist_path);
+    char *mkhd_plist_path = populate_plist_path();
+    if (!file_exists(mkhd_plist_path)) {
+        error("mkhd: service file '%s' is not installed! abort..\n", mkhd_plist_path);
     }
 
     char service_target[MAXLEN];
-    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_SKHD_PLIST);
+    snprintf(service_target, sizeof(service_target), "gui/%d/%s", getuid(), _NAME_MKHD_PLIST);
 
     char domain_target[MAXLEN];
     snprintf(domain_target, sizeof(domain_target), "gui/%d", getuid());
@@ -338,7 +338,7 @@ static int service_stop(void)
         // it first).
         //
 
-        const char *const args[] = { _PATH_LAUNCHCTL, "bootout", domain_target, skhd_plist_path, NULL };
+        const char *const args[] = { _PATH_LAUNCHCTL, "bootout", domain_target, mkhd_plist_path, NULL };
         return safe_exec((char *const*)args, false);
     }
 }

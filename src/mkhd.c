@@ -48,8 +48,8 @@ extern bool CGSIsSecureEventInputSet(void);
 typedef GLOBAL_CONNECTION_CALLBACK(global_connection_callback);
 extern CGError CGSRegisterNotifyProc(void *handler, uint32_t type, void *context);
 
-#define SKHD_CONFIG_FILE ".skhdrc"
-#define SKHD_PIDFILE_FMT "/tmp/skhd_%s.pid"
+#define MKHD_CONFIG_FILE ".mkhdrc"
+#define MKHD_PIDFILE_FMT "/tmp/mkhd_%s.pid"
 
 #define VERSION_OPT_LONG        "--version"
 #define VERSION_OPT_SHRT        "-v"
@@ -93,16 +93,16 @@ parse_config_helper(char *absolutepath)
 
         if (!thwart_hotloader) {
             if (hotloader_begin(&hotloader, config_handler)) {
-                debug("skhd: watching files for changes:\n", absolutepath);
+                debug("mkhd: watching files for changes:\n", absolutepath);
                 for (int i = 0; i < hotloader.watch_count; ++i) {
                     debug("\t%s\n", hotloader.watch_list[i].file_info.absolutepath);
                 }
             } else {
-                warn("skhd: could not start watcher.. hotloading is not enabled\n");
+                warn("mkhd: could not start watcher.. hotloading is not enabled\n");
             }
         }
     } else {
-        warn("skhd: could not open file '%s'\n", absolutepath);
+        warn("mkhd: could not open file '%s'\n", absolutepath);
     }
 
     current_mode = table_find(&mode_map, "default");
@@ -118,7 +118,7 @@ static void free_tables()
 static HOTLOADER_CALLBACK(config_handler)
 {
     BEGIN_TIMED_BLOCK("hotload_config");
-    debug("skhd: config-file has been modified.. reloading config\n");
+    debug("mkhd: config-file has been modified.. reloading config\n");
     free_tables();
     parse_config_helper(config_file);
     END_TIMED_BLOCK();
@@ -128,7 +128,7 @@ static CF_NOTIFICATION_CALLBACK(keymap_handler)
 {
     BEGIN_TIMED_BLOCK("keymap_changed");
     if (initialize_keycode_map()) {
-        debug("skhd: input source changed.. reloading config\n");
+        debug("mkhd: input source changed.. reloading config\n");
         free_tables();
         parse_config_helper(config_file);
     }
@@ -140,7 +140,7 @@ static EVENT_TAP_CALLBACK(key_observer_handler)
     switch (type) {
     case kCGEventTapDisabledByTimeout:
     case kCGEventTapDisabledByUserInput: {
-        debug("skhd: restarting event-tap\n");
+        debug("mkhd: restarting event-tap\n");
         struct event_tap *event_tap = (struct event_tap *) reference;
         CGEventTapEnable(event_tap->handle, 1);
     } break;
@@ -170,7 +170,7 @@ static EVENT_TAP_CALLBACK(key_handler)
     switch (type) {
     case kCGEventTapDisabledByTimeout:
     case kCGEventTapDisabledByUserInput: {
-        debug("skhd: restarting event-tap\n");
+        debug("mkhd: restarting event-tap\n");
         struct event_tap *event_tap = (struct event_tap *) reference;
         CGEventTapEnable(event_tap->handle, 1);
     } break;
@@ -202,7 +202,7 @@ static EVENT_TAP_CALLBACK(key_handler)
 static void sigusr1_handler(int signal)
 {
     BEGIN_TIMED_BLOCK("sigusr1");
-    debug("skhd: SIGUSR1 received.. reloading config\n");
+    debug("mkhd: SIGUSR1 received.. reloading config\n");
     free_tables();
     parse_config_helper(config_file);
     END_TIMED_BLOCK();
@@ -215,20 +215,20 @@ static pid_t read_pid_file(void)
 
     char *user = getenv("USER");
     if (user) {
-        snprintf(pid_file, sizeof(pid_file), SKHD_PIDFILE_FMT, user);
+        snprintf(pid_file, sizeof(pid_file), MKHD_PIDFILE_FMT, user);
     } else {
-        error("skhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
+        error("mkhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
     }
 
     int handle = open(pid_file, O_RDWR);
     if (handle == -1) {
-        error("skhd: could not open pid-file..\n");
+        error("mkhd: could not open pid-file..\n");
     }
 
     if (flock(handle, LOCK_EX | LOCK_NB) == 0) {
-        error("skhd: could not locate existing instance..\n");
+        error("mkhd: could not locate existing instance..\n");
     } else if (read(handle, &pid, sizeof(pid_t)) == -1) {
-        error("skhd: could not read pid-file..\n");
+        error("mkhd: could not read pid-file..\n");
     }
 
     close(handle);
@@ -242,14 +242,14 @@ static void create_pid_file(void)
 
     char *user = getenv("USER");
     if (user) {
-        snprintf(pid_file, sizeof(pid_file), SKHD_PIDFILE_FMT, user);
+        snprintf(pid_file, sizeof(pid_file), MKHD_PIDFILE_FMT, user);
     } else {
-        error("skhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
+        error("mkhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
     }
 
     int handle = open(pid_file, O_CREAT | O_RDWR, 0644);
     if (handle == -1) {
-        error("skhd: could not create pid-file! abort..\n");
+        error("mkhd: could not create pid-file! abort..\n");
     }
 
     struct flock lockfd = {
@@ -261,15 +261,15 @@ static void create_pid_file(void)
     };
 
     if (fcntl(handle, F_SETLK, &lockfd) == -1) {
-        error("skhd: could not lock pid-file! abort..\n");
+        error("mkhd: could not lock pid-file! abort..\n");
     } else if (write(handle, &pid, sizeof(pid_t)) == -1) {
-        error("skhd: could not write pid-file! abort..\n");
+        error("mkhd: could not write pid-file! abort..\n");
     }
 
     // NOTE(koekeishiya): we intentionally leave the handle open,
     // as calling close(..) will release the lock we just acquired.
 
-    debug("skhd: successfully created pid-file..\n");
+    debug("mkhd: successfully created pid-file..\n");
 }
 
 static inline bool string_equals(const char *a, const char *b)
@@ -281,7 +281,7 @@ static bool parse_arguments(int argc, char **argv)
 {
     if ((string_equals(argv[1], VERSION_OPT_LONG)) ||
         (string_equals(argv[1], VERSION_OPT_SHRT))) {
-        fprintf(stdout, "skhd-v%d.%d.%d\n", MAJOR, MINOR, PATCH);
+        fprintf(stdout, "mkhd-v%d.%d.%d\n", MAJOR, MINOR, PATCH);
         exit(EXIT_SUCCESS);
     }
 
@@ -397,14 +397,14 @@ static bool get_config_file(char *restrict filename, char *restrict buffer, int 
 {
     char *xdg_home = getenv("XDG_CONFIG_HOME");
     if (xdg_home && *xdg_home) {
-        snprintf(buffer, buffer_size, "%s/skhd/%s", xdg_home, filename);
+        snprintf(buffer, buffer_size, "%s/mkhd/%s", xdg_home, filename);
         if (file_exists(buffer)) return true;
     }
 
     char *home = getenv("HOME");
     if (!home) return false;
 
-    snprintf(buffer, buffer_size, "%s/.config/skhd/%s", home, filename);
+    snprintf(buffer, buffer_size, "%s/.config/mkhd/%s", home, filename);
     if (file_exists(buffer)) return true;
 
     snprintf(buffer, buffer_size, "%s/.%s", home, filename);
@@ -433,9 +433,9 @@ static void dump_secure_keyboard_entry_process_info(void)
     pid_t pid;
     char *process_name = secure_keyboard_entry_process_info(&pid);
     if (process_name) {
-        error("skhd: secure keyboard entry is enabled by (%lld) '%s'! abort..\n", pid, process_name);
+        error("mkhd: secure keyboard entry is enabled by (%lld) '%s'! abort..\n", pid, process_name);
     } else {
-        error("skhd: secure keyboard entry is enabled! abort..\n");
+        error("mkhd: secure keyboard entry is enabled! abort..\n");
     }
 }
 
@@ -466,7 +466,7 @@ static GLOBAL_CONNECTION_CALLBACK(connection_handler)
 int main(int argc, char **argv)
 {
     if (getuid() == 0 || geteuid() == 0) {
-        require("skhd: running as root is not allowed! abort..\n");
+        require("mkhd: running as root is not allowed! abort..\n");
     }
 
     if (parse_arguments(argc, argv)) {
@@ -482,19 +482,19 @@ int main(int argc, char **argv)
     }
 
     if (!check_privileges()) {
-        require("skhd: must be run with accessibility access! abort..\n");
+        require("mkhd: must be run with accessibility access! abort..\n");
     }
 
     if (!initialize_keycode_map()) {
-        error("skhd: could not initialize keycode map! abort..\n");
+        error("mkhd: could not initialize keycode map! abort..\n");
     }
 
     if (!carbon_event_init(&carbon)) {
-        error("skhd: could not initialize carbon events! abort..\n");
+        error("mkhd: could not initialize carbon events! abort..\n");
     }
 
     if (config_file[0] == 0) {
-        get_config_file("skhdrc", config_file, sizeof(config_file));
+        get_config_file("mkhdrc", config_file, sizeof(config_file));
     }
 
     CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(),
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
     END_SCOPED_TIMED_BLOCK();
 
     BEGIN_SCOPED_TIMED_BLOCK("parse_config");
-    debug("skhd: using config '%s'\n", config_file);
+    debug("mkhd: using config '%s'\n", config_file);
     parse_config_helper(config_file);
     END_SCOPED_TIMED_BLOCK();
 

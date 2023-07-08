@@ -2,7 +2,7 @@ void notify_init(void)
 {
     class_replaceMethod(objc_getClass("NSBundle"),
                         sel_registerName("bundleIdentifier"),
-                        method_getImplementation((void *)^{return CFSTR("com.koekeishiya.skhd");}),
+                        method_getImplementation((void *)^{return CFSTR("com.koekeishiya.mkhd");}),
                         NULL);
 }
 
@@ -18,7 +18,7 @@ void notify(const char *subtitle, const char *format, ...)
     void *center = ((void * (*)(void *, SEL))objc_msgSend)((void *) objc_getClass("NSUserNotificationCenter"), sel_registerName("defaultUserNotificationCenter"));
     void *notification = ((void * (*)(void *, SEL, SEL))objc_msgSend)((void *) objc_getClass("NSUserNotification"), sel_registerName("alloc"), sel_registerName("init"));
 
-    ((void (*)(void *, SEL, CFStringRef))objc_msgSend)(notification, sel_registerName("setTitle:"), CFSTR("skhd"));
+    ((void (*)(void *, SEL, CFStringRef))objc_msgSend)(notification, sel_registerName("setTitle:"), CFSTR("mkhd"));
     ((void (*)(void *, SEL, CFStringRef))objc_msgSend)(notification, sel_registerName("setSubtitle:"), subtitle_ref);
     ((void (*)(void *, SEL, CFStringRef))objc_msgSend)(notification, sel_registerName("setInformativeText:"), message_ref);
     ((void (*)(void *, SEL, void *))objc_msgSend)(center, sel_registerName("deliverNotification:"), notification);

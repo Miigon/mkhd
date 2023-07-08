@@ -1,5 +1,5 @@
-#ifndef SKHD_HOTKEY_H
-#define SKHD_HOTKEY_H
+#ifndef MKHD_HOTKEY_H
+#define MKHD_HOTKEY_H
 
 #include <Carbon/Carbon.h>
 #include <stdint.h>

@@ -1,5 +1,5 @@
-#ifndef SKHD_TOKENIZE_H
-#define SKHD_TOKENIZE_H
+#ifndef MKHD_TOKENIZE_H
+#define MKHD_TOKENIZE_H
 
 static const char *modifier_flags_str[] =
 {

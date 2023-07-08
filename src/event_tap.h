@@ -1,5 +1,5 @@
-#ifndef SKHD_EVENT_TAP_H
-#define SKHD_EVENT_TAP_H
+#ifndef MKHD_EVENT_TAP_H
+#define MKHD_EVENT_TAP_H
 
 #include <stdbool.h>
 #include <Carbon/Carbon.h>

@@ -1,5 +1,5 @@
-#ifndef SKHD_LOG_H
-#define SKHD_LOG_H
+#ifndef MKHD_LOG_H
+#define MKHD_LOG_H
 
 static bool verbose;
 

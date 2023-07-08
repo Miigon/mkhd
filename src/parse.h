@@ -1,5 +1,5 @@
-#ifndef SKHD_PARSE_H
-#define SKHD_PARSE_H
+#ifndef MKHD_PARSE_H
+#define MKHD_PARSE_H
 
 #include "tokenize.h"
 #include "hotkey.h"

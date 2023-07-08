@@ -1,5 +1,5 @@
-#ifndef SKHD_HOTLOAD_H
-#define SKHD_HOTLOAD_H
+#ifndef MKHD_HOTLOAD_H
+#define MKHD_HOTLOAD_H
 
 #ifndef __cplusplus
 #include <stdbool.h>

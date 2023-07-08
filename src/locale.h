@@ -1,5 +1,5 @@
-#ifndef SKHD_LOCALE_H
-#define SKHD_LOCALE_H
+#ifndef MKHD_LOCALE_H
+#define MKHD_LOCALE_H
 
 #include <stdint.h>
 
