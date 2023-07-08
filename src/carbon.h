@@ -2,13 +2,12 @@
 
 #include <Carbon/Carbon.h>
 
-struct carbon_event
-{
-    EventTargetRef target;
-    EventHandlerUPP handler;
-    EventTypeSpec type;
-    EventHandlerRef handler_ref;
-    char * volatile process_name;
+struct carbon_event {
+	EventTargetRef target;
+	EventHandlerUPP handler;
+	EventTypeSpec type;
+	EventHandlerRef handler_ref;
+	char *volatile process_name;
 };
 
 char *find_process_name_for_pid(pid_t pid);

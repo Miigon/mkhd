@@ -3,7 +3,8 @@ BUILD_PATH     ?= ./build
 OBJ_PATH       = $(BUILD_PATH)/objs
 
 SRC            = $(wildcard $(SRC_PATH)/*.c)
-DEPS           = $(wildcard $(SRC_PATH)/*.h)
+HEADER         = $(wildcard $(SRC_PATH)/*.h)
+DEPS           = $(HEADER)
 OBJS           = $(patsubst %.c,$(OBJ_PATH)/%.o,$(SRC))
 BINS           = $(BUILD_PATH)/mkhd
 
@@ -11,7 +12,7 @@ DEBUG_FLAGS ?= -g -O0
 CFLAGS = -std=c99 -Wall $(DEBUG_FLAGS)
 LDFLAGS = -framework Cocoa -framework Carbon -framework CoreServices
 
-.PHONY: all clean release
+.PHONY: all clean release format check-format
 
 all: $(BINS)
 
@@ -30,3 +31,9 @@ $(OBJ_PATH)/%.o: %.c
 	clang -c $^ $(CFLAGS) -o $@
 
 %.o: %.c
+
+format:
+	clang-format -i $(SRC) $(HEADER)
+
+check-format:
+	clang-format --dry-run --Werror -i $(SRC) $(HEADER)

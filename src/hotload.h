@@ -1,24 +1,22 @@
 #pragma once
 
-#include <stdbool.h>
-
 #include <Carbon/Carbon.h>
+#include <stdbool.h>
 
 #define HOTLOADER_CALLBACK(name) void name(char *absolutepath, char *directory, char *filename)
 typedef HOTLOADER_CALLBACK(hotloader_callback);
 
 struct watched_entry;
-struct hotloader
-{
-    FSEventStreamEventFlags flags;
-    FSEventStreamRef stream;
-    CFArrayRef path;
-    bool enabled;
+struct hotloader {
+	FSEventStreamEventFlags flags;
+	FSEventStreamRef stream;
+	CFArrayRef path;
+	bool enabled;
 
-    hotloader_callback *callback;
-    struct watched_entry *watch_list;
-    unsigned watch_capacity;
-    unsigned watch_count;
+	hotloader_callback *callback;
+	struct watched_entry *watch_list;
+	unsigned watch_capacity;
+	unsigned watch_count;
 };
 
 bool hotloader_begin(struct hotloader *hotloader, hotloader_callback *callback);

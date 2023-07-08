@@ -1,20 +1,15 @@
 #pragma once
 
-#include <stdbool.h>
 #include <Carbon/Carbon.h>
+#include <stdbool.h>
 
-struct event_tap
-{
-    CFMachPortRef handle;
-    CFRunLoopSourceRef runloop_source;
-    CGEventMask mask;
+struct event_tap {
+	CFMachPortRef handle;
+	CFRunLoopSourceRef runloop_source;
+	CGEventMask mask;
 };
 
-#define EVENT_TAP_CALLBACK(name) \
-    CGEventRef name(CGEventTapProxy proxy, \
-                    CGEventType type, \
-                    CGEventRef event, \
-                    void *reference)
+#define EVENT_TAP_CALLBACK(name) CGEventRef name(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *reference)
 typedef EVENT_TAP_CALLBACK(event_tap_callback);
 
 bool event_tap_enabled(struct event_tap *event_tap);
