@@ -1,5 +1,4 @@
-#ifndef MKHD_TOKENIZE_H
-#define MKHD_TOKENIZE_H
+#pragma once
 
 static const char *modifier_flags_str[] =
 {
@@ -85,5 +84,3 @@ void tokenizer_init(struct tokenizer *tokenizer, char *buffer);
 struct token get_token(struct tokenizer *tokenizer);
 struct token peek_token(struct tokenizer tokenizer);
 int token_equals(struct token token, const char *match);
-
-#endif

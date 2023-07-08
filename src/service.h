@@ -1,5 +1,4 @@
-#ifndef SERVICE_H
-#define SERVICE_H
+#pragma once
 
 #include <spawn.h>
 #include <sys/stat.h>
@@ -342,5 +341,3 @@ static int service_stop(void)
         return safe_exec((char *const*)args, false);
     }
 }
-
-#endif

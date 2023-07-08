@@ -4,6 +4,7 @@
 #include "locale.h"
 #include "parse.h"
 #include "hotkey.h"
+#include "log.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated"

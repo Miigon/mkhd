@@ -1,27 +1,14 @@
-#include "locale.h"
-#include "hashtable.h"
-#include "sbuffer.h"
 #include <Carbon/Carbon.h>
 #include <IOKit/hidsystem/ev_keymap.h>
 
-#define array_count(a) (sizeof((a)) / sizeof(*(a)))
+#include "locale.h"
+#include "hashtable.h"
+#include "sbuffer.h"
+#include "carbon.h"
+#include "utils.h"
 
 static struct table keymap_table;
 static char **keymap_keys;
-
-static char *copy_cfstring(CFStringRef string)
-{
-    CFIndex num_bytes = CFStringGetMaximumSizeForEncoding(CFStringGetLength(string), kCFStringEncodingUTF8);
-    char *result = malloc(num_bytes + 1);
-
-    // NOTE(koekeishiya): Boolean: typedef -> unsigned char; false = 0, true != 0
-    if (!CFStringGetCString(string, result, num_bytes + 1, kCFStringEncodingUTF8)) {
-        free(result);
-        result = NULL;
-    }
-
-    return result;
-}
 
 static int hash_keymap(const char *a)
 {

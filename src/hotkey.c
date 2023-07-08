@@ -1,4 +1,7 @@
 #include "hotkey.h"
+#include "sbuffer.h"
+#include "utils.h"
+#include "carbon.h"
 
 #define HOTKEY_FOUND           ((1) << 0)
 #define MODE_CAPTURE(a)        ((a) << 1)

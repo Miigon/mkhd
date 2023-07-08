@@ -1,5 +1,4 @@
-#ifndef MKHD_CARBON_H
-#define MKHD_CARBON_H
+#pragma once
 
 #include <Carbon/Carbon.h>
 
@@ -15,4 +14,4 @@ struct carbon_event
 char *find_process_name_for_pid(pid_t pid);
 bool carbon_event_init(struct carbon_event *carbon);
 
-#endif
+char *copy_cfstring(CFStringRef string);

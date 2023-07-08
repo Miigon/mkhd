@@ -2,6 +2,21 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated"
+
+char *copy_cfstring(CFStringRef string)
+{
+    CFIndex num_bytes = CFStringGetMaximumSizeForEncoding(CFStringGetLength(string), kCFStringEncodingUTF8);
+    char *result = malloc(num_bytes + 1);
+
+    // NOTE(koekeishiya): Boolean: typedef -> unsigned char; false = 0, true != 0
+    if (!CFStringGetCString(string, result, num_bytes + 1, kCFStringEncodingUTF8)) {
+        free(result);
+        result = NULL;
+    }
+
+    return result;
+}
+
 static inline char *
 find_process_name_for_psn(ProcessSerialNumber *psn)
 {

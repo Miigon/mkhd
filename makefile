@@ -1,19 +1,32 @@
-FRAMEWORKS     = -framework Cocoa -framework Carbon -framework CoreServices
-BUILD_PATH     = ./bin
-BUILD_FLAGS    = -std=c99 -Wall -g -O0
-MKHD_SRC       = ./src/mkhd.c
+SRC_PATH       ?= ./src
+BUILD_PATH     ?= ./build
+OBJ_PATH       = $(BUILD_PATH)/objs
+
+SRC            = $(wildcard $(SRC_PATH)/*.c)
+DEPS           = $(wildcard $(SRC_PATH)/*.h)
+OBJS           = $(patsubst %.c,$(OBJ_PATH)/%.o,$(SRC))
 BINS           = $(BUILD_PATH)/mkhd
 
-.PHONY: all clean install
+DEBUG_FLAGS ?= -g -O0
+CFLAGS = -std=c99 -Wall $(DEBUG_FLAGS)
+LDFLAGS = -framework Cocoa -framework Carbon -framework CoreServices
 
-all: clean $(BINS)
+.PHONY: all clean release
 
-install: BUILD_FLAGS=-std=c99 -Wall -O2
-install: clean $(BINS)
+all: $(BINS)
+
+release: DEBUG_FLAGS=-O2
+release: clean $(BINS)
 
 clean:
-	rm -rf $(BUILD_PATH)
+	rm -f $(BINS) $(OBJS)
 
-$(BUILD_PATH)/mkhd: $(MKHD_SRC)
+$(BINS): $(OBJS) $(DEPS)
 	mkdir -p $(BUILD_PATH)
-	clang $^ $(BUILD_FLAGS) $(FRAMEWORKS) -o $@
+	clang $(OBJS) $(CFLAGS) $(LDFLAGS) -o $@
+
+$(OBJ_PATH)/%.o: %.c
+	@mkdir -p $(@D)
+	clang -c $^ $(CFLAGS) -o $@
+
+%.o: %.c

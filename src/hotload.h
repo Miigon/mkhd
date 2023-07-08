@@ -1,9 +1,6 @@
-#ifndef MKHD_HOTLOAD_H
-#define MKHD_HOTLOAD_H
+#pragma once
 
-#ifndef __cplusplus
 #include <stdbool.h>
-#endif
 
 #include <Carbon/Carbon.h>
 
@@ -29,4 +26,4 @@ void hotloader_end(struct hotloader *hotloader);
 bool hotloader_add_catalog(struct hotloader *hotloader, const char *directory, const char *extension);
 bool hotloader_add_file(struct hotloader *hotloader, const char *file);
 
-#endif
+void hotloader_debug(struct hotloader *hotloader);

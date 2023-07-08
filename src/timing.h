@@ -1,5 +1,4 @@
-#ifndef MACOS_TIMING_H
-#define MACOS_TIMING_H
+#pragma once
 
 #include <stdint.h>
 #include <CoreServices/CoreServices.h>
@@ -76,5 +75,3 @@ void end_timing(struct timing_info *timing) {
         printf("%6.4fms\n", timing->ms);
     }
 }
-
-#endif

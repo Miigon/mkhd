@@ -1,9 +1,10 @@
-#ifndef MKHD_PARSE_H
-#define MKHD_PARSE_H
+#pragma once
+
+#include <stdbool.h>
 
 #include "tokenize.h"
 #include "hotkey.h"
-#include <stdbool.h>
+#include "hotload.h"
 
 struct load_directive
 {
@@ -38,5 +39,4 @@ bool parser_init(struct parser *parser, struct table *mode_map, struct table *bl
 bool parser_init_text(struct parser *parser, char *text);
 void parser_destroy(struct parser *parser);
 void parser_report_error(struct parser *parser, struct token token, const char *format, ...);
-
-#endif
+void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bool thwart_hotloader);

@@ -1,15 +1,19 @@
 #include "parse.h"
-#include "tokenize.h"
-#include "locale.h"
-#include "hotkey.h"
-#include "hashtable.h"
-#include "log.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <IOKit/hidsystem/ev_keymap.h>
+
+#include "tokenize.h"
+#include "locale.h"
+#include "hotkey.h"
+#include "hashtable.h"
+#include "log.h"
+#include "utils.h"
+#include "sbuffer.h"
 
 static struct mode *
 find_or_init_default_mode(struct parser *parser)
@@ -21,7 +25,7 @@ find_or_init_default_mode(struct parser *parser)
     }
 
     default_mode = malloc(sizeof(struct mode));
-    default_mode->name = copy_string("default");
+    default_mode->name = copy_string_malloc("default");
     default_mode->initialized = false;
 
     table_init(&default_mode->hotkey_map, 131,
@@ -55,20 +59,6 @@ read_file(const char *file)
     return buffer;
 }
 
-static char *
-copy_string_count_nomalloc(char *dst, const char *s, int length) {
-    memcpy(dst, s, length);
-    dst[length] = '\0';
-    return dst;
-}
-
-static char *
-copy_string_count(const char *s, int length)
-{
-    char *result = malloc(length + 1);
-    return copy_string_count_nomalloc(result, s, length);
-}
-
 static uint32_t
 keycode_from_hex(char *hex)
 {
@@ -81,7 +71,7 @@ static void
 parse_command(struct parser *parser, struct hotkey *hotkey)
 {
     struct token command = parser_previous(parser);
-    char *result = copy_string_count(command.text, command.length);
+    char *result = copy_string_count_malloc(command.text, command.length);
     debug("\tcmd: '%s'\n", result);
     buf_push(hotkey->command, result);
 }
@@ -91,7 +81,7 @@ parse_process_command_list(struct parser *parser, struct hotkey *hotkey)
 {
     if (parser_match(parser, Token_String)) {
         struct token name_token = parser_previous(parser);
-        char *name = copy_string_count(name_token.text, name_token.length);
+        char *name = copy_string_count_malloc(name_token.text, name_token.length);
         for (char *s = name; *s; ++s) *s = tolower(*s);
         buf_push(hotkey->process_name, name);
         if (parser_match(parser, Token_Command)) {
@@ -106,7 +96,7 @@ parse_process_command_list(struct parser *parser, struct hotkey *hotkey)
     } else if (parser_match(parser, Token_Wildcard)) {
         if (parser_match(parser, Token_Command)) {
             struct token command = parser_previous(parser);
-            char *result = copy_string_count(command.text, command.length);
+            char *result = copy_string_count_malloc(command.text, command.length);
             debug("\tcmd: '%s'\n", result);
             hotkey->wildcard_command = result;
             parse_process_command_list(parser, hotkey);
@@ -288,7 +278,7 @@ parse_mode(struct parser *parser, struct hotkey *hotkey)
 {
     struct token identifier = parser_previous(parser);
 
-    char *name = copy_string_count(identifier.text, identifier.length);
+    char *name = copy_string_count_malloc(identifier.text, identifier.length);
     struct mode *mode = table_find(parser->mode_map, name);
     free(name);
 
@@ -372,7 +362,7 @@ parse_mode_decl(struct parser *parser)
     struct mode *mode = malloc(sizeof(struct mode));
     struct token identifier = parser_previous(parser);
 
-    mode->name = copy_string_count(identifier.text, identifier.length);
+    mode->name = copy_string_count_malloc(identifier.text, identifier.length);
     mode->initialized = true;
 
     table_init(&mode->hotkey_map, 131,
@@ -386,7 +376,7 @@ parse_mode_decl(struct parser *parser)
     }
 
     if (parser_match(parser, Token_Command)) {
-        mode->command = copy_string_count(parser->previous_token.text, parser->previous_token.length);
+        mode->command = copy_string_count_malloc(parser->previous_token.text, parser->previous_token.length);
     } else {
         mode->command = NULL;
     }
@@ -426,7 +416,7 @@ void parse_option_blacklist(struct parser *parser)
 {
     if (parser_match(parser, Token_String)) {
         struct token name_token = parser_previous(parser);
-        char *name = copy_string_count(name_token.text, name_token.length);
+        char *name = copy_string_count_malloc(name_token.text, name_token.length);
         for (char *s = name; *s; ++s) *s = tolower(*s);
         debug("\t%s\n", name);
         table_add(parser->blacklst, name, name);
@@ -443,7 +433,7 @@ void parse_option_blacklist(struct parser *parser)
 void parse_option_load(struct parser *parser, struct token option)
 {
     struct token filename_token = parser_previous(parser);
-    char *filename = copy_string_count(filename_token.text, filename_token.length);
+    char *filename = copy_string_count_malloc(filename_token.text, filename_token.length);
     debug("\t%s\n", filename);
 
     if (*filename != '/') {
@@ -469,7 +459,7 @@ void parse_option_load(struct parser *parser, struct token option)
 void parse_option_alias(struct parser *parser)
 {
     struct token alias_token = parser_previous(parser);
-    char *alias_name = copy_string_count(alias_token.text, alias_token.length);
+    char *alias_name = copy_string_count_malloc(alias_token.text, alias_token.length);
     debug("\talias_name: $%s\n", alias_name);
 
     struct hotkey *hotkey = malloc(sizeof(struct hotkey));

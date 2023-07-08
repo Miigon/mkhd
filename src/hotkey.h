@@ -1,5 +1,4 @@
-#ifndef MKHD_HOTKEY_H
-#define MKHD_HOTKEY_H
+#pragma once
 
 #include <Carbon/Carbon.h>
 #include <stdint.h>
@@ -113,5 +112,3 @@ void free_blacklist(struct table *blacklst);
 void free_alias_map(struct table *alias_map);
 
 void init_shell(void);
-
-#endif

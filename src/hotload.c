@@ -1,8 +1,13 @@
 #include "hotload.h"
+
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "utils.h"
+#include "log.h"
+
 
 #define FSEVENT_CALLBACK(name) void name(ConstFSEventStreamRef stream,\
                                          void *context,\
@@ -40,41 +45,6 @@ struct watched_entry
     };
 };
 
-static inline bool
-same_string(const char *a, const char *b)
-{
-    bool result = a && b && strcmp(a, b) == 0;
-    return result;
-}
-
-static char *
-copy_string(const char *s)
-{
-    unsigned length = strlen(s);
-    char *result = (char *) malloc(length + 1);
-    memcpy(result, s, length);
-    result[length] = '\0';
-    return result;
-}
-
-static char *
-file_directory(char *file)
-{
-    char *last_slash = strrchr(file, '/');
-    *last_slash = '\0';
-    char *directory = copy_string(file);
-    *last_slash = '/';
-    return directory;
-}
-
-static char *
-file_name(char *file)
-{
-    char *last_slash = strrchr(file, '/');
-    char *name = copy_string(last_slash + 1);
-    return name;
-}
-
 static char *
 resolve_symlink(const char *file)
 {
@@ -84,11 +54,11 @@ resolve_symlink(const char *file)
     }
 
     if (S_ISDIR(buffer.st_mode)) {
-        return copy_string(file);
+        return copy_string_malloc(file);
     }
 
     if (!S_ISLNK(buffer.st_mode)) {
-        return copy_string(file);
+        return copy_string_malloc(file);
     }
 
     char *result = realpath(file, NULL);
@@ -207,7 +177,7 @@ bool hotloader_add_catalog(struct hotloader *hotloader, const char *directory, c
         .catalog_info = {
             .directory = real_path,
             .extension = extension
-                       ? copy_string(extension)
+                       ? copy_string_malloc(extension)
                        : NULL
         }
     });
@@ -235,6 +205,13 @@ bool hotloader_add_file(struct hotloader *hotloader, const char *file)
     });
 
     return true;
+}
+
+void hotloader_debug(struct hotloader *hotloader)
+{
+    for (int i = 0; i < hotloader->watch_count; ++i) {
+        debug("\t%s\n", hotloader->watch_list[i].file_info.absolutepath);
+    }
 }
 
 bool hotloader_begin(struct hotloader *hotloader, hotloader_callback *callback)

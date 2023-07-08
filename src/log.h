@@ -1,7 +1,7 @@
 #ifndef MKHD_LOG_H
 #define MKHD_LOG_H
 
-static bool verbose;
+extern bool verbose;
 
 static inline void
 debug(const char *format, ...)

@@ -16,7 +16,6 @@
 
 #include "timing.h"
 #include "log.h"
-#define HASHTABLE_IMPLEMENTATION
 #include "hashtable.h"
 #include "sbuffer.h"
 #include "hotload.h"
@@ -28,16 +27,7 @@
 #include "hotkey.h"
 #include "synthesize.h"
 #include "service.h"
-
-#include "hotload.c"
-#include "event_tap.c"
-#include "locale.c"
-#include "carbon.c"
-#include "tokenize.c"
-#include "parse.c"
-#include "hotkey.c"
-#include "synthesize.c"
-#include "notify.c"
+#include "notify.h"
 
 extern void NSApplicationLoad(void);
 extern CFDictionaryRef CGSCopyCurrentSessionDictionary(void);
@@ -74,6 +64,8 @@ static struct table alias_map;
 static bool thwart_hotloader;
 static char config_file[4096];
 
+bool verbose;
+
 static HOTLOADER_CALLBACK(config_handler);
 
 static void
@@ -94,9 +86,7 @@ parse_config_helper(char *absolutepath)
         if (!thwart_hotloader) {
             if (hotloader_begin(&hotloader, config_handler)) {
                 debug("mkhd: watching files for changes:\n", absolutepath);
-                for (int i = 0; i < hotloader.watch_count; ++i) {
-                    debug("\t%s\n", hotloader.watch_list[i].file_info.absolutepath);
-                }
+                hotloader_debug(&hotloader);
             } else {
                 warn("mkhd: could not start watcher.. hotloading is not enabled\n");
             }
@@ -439,30 +429,6 @@ static void dump_secure_keyboard_entry_process_info(void)
     }
 }
 
-static GLOBAL_CONNECTION_CALLBACK(connection_handler)
-{
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.1f * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        pid_t pid;
-        char *process_name = secure_keyboard_entry_process_info(&pid);
-
-        if (type == 752) {
-            if (process_name) {
-                notify("Secure Keyboard Entry", "Enabled by '%s' (%d)", process_name, pid);
-            } else {
-                notify("Secure Keyboard Entry", "Enabled by unknown application..");
-            }
-        } else if (type == 753) {
-            if (process_name) {
-                notify("Secure Keyboard Entry", "Disabled by '%s' (%d)", process_name, pid);
-            } else {
-                notify("Secure Keyboard Entry", "Disabled by unknown application..");
-            }
-        }
-
-        if (process_name) free(process_name);
-    });
-}
-
 int main(int argc, char **argv)
 {
     if (getuid() == 0 || geteuid() == 0) {
@@ -526,8 +492,6 @@ int main(int argc, char **argv)
 
     NSApplicationLoad();
     notify_init();
-    // CGSRegisterNotifyProc((void*)connection_handler, 752, NULL);
-    // CGSRegisterNotifyProc((void*)connection_handler, 753, NULL);
 
     CFRunLoopRun();
     return EXIT_SUCCESS;

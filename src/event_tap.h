@@ -1,5 +1,4 @@
-#ifndef MKHD_EVENT_TAP_H
-#define MKHD_EVENT_TAP_H
+#pragma once
 
 #include <stdbool.h>
 #include <Carbon/Carbon.h>
@@ -21,5 +20,3 @@ typedef EVENT_TAP_CALLBACK(event_tap_callback);
 bool event_tap_enabled(struct event_tap *event_tap);
 bool event_tap_begin(struct event_tap *event_tap, event_tap_callback *callback);
 void event_tap_end(struct event_tap *event_tap);
-
-#endif

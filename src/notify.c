@@ -1,3 +1,6 @@
+#include <CoreFoundation/CoreFoundation.h>
+#include <objc/objc-runtime.h>
+
 void notify_init(void)
 {
     class_replaceMethod(objc_getClass("NSBundle"),
