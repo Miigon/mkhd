@@ -22,13 +22,13 @@ release: clean $(BINS)
 clean:
 	rm -f $(BINS) $(OBJS)
 
-$(BINS): $(OBJS) $(DEPS)
+$(BINS): $(OBJS)
 	mkdir -p $(BUILD_PATH)
 	clang $(OBJS) $(CFLAGS) $(LDFLAGS) -o $@
 
-$(OBJ_PATH)/%.o: %.c
+$(OBJ_PATH)/%.o: %.c $(DEPS)
 	@mkdir -p $(@D)
-	clang -c $^ $(CFLAGS) -o $@
+	clang -c $< $(CFLAGS) -o $@
 
 %.o: %.c
 
