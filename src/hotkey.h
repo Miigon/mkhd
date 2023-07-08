@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "mkhd.h"
+
 #define Modifier_Keycode_Alt 0x3A
 #define Modifier_Keycode_Shift 0x38
 #define Modifier_Keycode_Cmd 0x37
@@ -41,9 +43,9 @@ enum hotkey_flag {
 	Hotkey_Flag_RControl = (1 << 11),
 	Hotkey_Flag_Fn = (1 << 12),
 	Hotkey_Flag_Modifier = ((Hotkey_Flag_Fn << 1) - 1),
-	Hotkey_Flag_Passthrough = (1 << 13),
-	Hotkey_Flag_Activate = (1 << 14),
+
 	Hotkey_Flag_NX = (1 << 15),
+	// TODO: deprecate these
 	Hotkey_Flag_Hyper = (Hotkey_Flag_Cmd | Hotkey_Flag_Alt | Hotkey_Flag_Shift | Hotkey_Flag_Control),
 	Hotkey_Flag_Meh = (Hotkey_Flag_Control | Hotkey_Flag_Shift | Hotkey_Flag_Alt)
 };
@@ -52,42 +54,66 @@ enum hotkey_flag {
 
 struct carbon_event;
 
-struct mode {
-	char *name;
-	char *command;
-	bool capture;
-	bool initialized;
-	struct table hotkey_map;
+enum action_type {
+	Action_NoOp = 0,
+	Action_Command,
+	Action_ModeSwitch,
+	Action_PopMode, // pop back to the mode before entering this mode
+
+	Action_PassMode,	  // pass keyevent to another mode
+	Action_Fallthrough,	  // pass to the next lower mode in the mode stack
+	Action_PassNocapture, // pass to outside mkhd (no capture, work as regular key press)
+};
+
+struct action {
+	enum action_type type;
+	const char *argument;
+};
+
+struct keyevent {
+	// todo: implement special event (@enter_mode, @exit_mode, @unmatched, etc)
+	uint32_t flags;
+	uint32_t key;
 };
 
 struct hotkey {
-	uint32_t flags;
-	uint32_t key;
-	char **process_name;
-	char **command;
-	char *wildcard_command;
-	struct mode **mode_list;
+	struct keyevent event;
+
+	char **process_names;
+	struct action **actions;
+
+	struct action *process_default_action;
 };
 
-static inline void add_flags(struct hotkey *hotkey, uint32_t flag) { hotkey->flags |= flag; }
+struct mode {
+	const char *name;
+	struct table hotkey_map; // <keyevent, hotkey>
 
-static inline bool has_flags(struct hotkey *hotkey, uint32_t flag) {
-	bool result = hotkey->flags & flag;
-	return result;
-}
+	// actions triggered for special events (@unmatched, @enter_mode, etc).
+	// no need to null-check these. they are guaranteed to be initialized. (most of them are NoOp)
+	struct action *on_unmatched; // what to do when a key matches no hotkey in this mode (default: Fallthrough)
+	struct action *on_enter_mode;
+	struct action *on_exit_mode;
+};
 
-static inline void clear_flags(struct hotkey *hotkey, uint32_t flag) { hotkey->flags &= ~flag; }
+static inline void add_flags(struct keyevent *event, uint32_t flag) { event->flags |= flag; }
+static inline bool has_flags(struct keyevent *event, uint32_t flag) { return event->flags & flag; }
+static inline void clear_flags(struct keyevent *event, uint32_t flag) { event->flags &= ~flag; }
 
 bool compare_string(char *a, char *b);
 unsigned long hash_string(char *key);
 
-bool same_hotkey(struct hotkey *a, struct hotkey *b);
-unsigned long hash_hotkey(struct hotkey *a);
+bool compare_keyevent(struct keyevent *a, struct keyevent *b);
+unsigned long hash_keyevent(struct keyevent *a);
 
-struct hotkey create_eventkey(CGEventRef event);
-bool intercept_systemkey(CGEventRef event, struct hotkey *eventkey);
+struct keyevent create_keyevent_from_CGEvent(CGEventRef event);
+bool intercept_systemkey(CGEventRef event, struct keyevent *eventkey);
 
-bool find_and_exec_hotkey(struct hotkey *k, struct table *t, struct mode **m, struct carbon_event *carbon);
+// returns whether to capture the event or not
+bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name);
+
+struct mode *create_new_mode(const char *name_moved);
+
 void free_mode_map(struct table *mode_map);
 void free_blacklist(struct table *blacklst);
 void free_alias_map(struct table *alias_map);

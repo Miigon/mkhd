@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct bucket *table_new_bucket(void *key, void *value) {
+static struct bucket *table_new_bucket(const void *key, void *value) {
 	struct bucket *bucket = malloc(sizeof(struct bucket));
 	bucket->key = key;
 	bucket->value = value;
@@ -12,7 +12,7 @@ static struct bucket *table_new_bucket(void *key, void *value) {
 	return bucket;
 }
 
-static struct bucket **table_get_bucket(struct table *table, void *key) {
+static struct bucket **table_get_bucket(struct table *table, const void *key) {
 	struct bucket **bucket = table->buckets + (table->hash(key) % table->capacity);
 	while (*bucket) {
 		if (table->compare((*bucket)->key, key)) {
@@ -47,12 +47,12 @@ void table_free(struct table *table) {
 	}
 }
 
-void *table_find(struct table *table, void *key) {
+void *table_find(struct table *table, const void *key) {
 	struct bucket *bucket = *table_get_bucket(table, key);
 	return bucket ? bucket->value : NULL;
 }
 
-void table_newkeyvalue(struct table *table, void *key, void *value, bool do_replace) {
+void table_newkeyvalue(struct table *table, const void *key, void *value, bool do_replace) {
 	struct bucket **bucket = table_get_bucket(table, key);
 	if (*bucket) {
 		if (do_replace || !(*bucket)->value) {
@@ -64,11 +64,11 @@ void table_newkeyvalue(struct table *table, void *key, void *value, bool do_repl
 	}
 }
 
-void table_add(struct table *table, void *key, void *value) { table_newkeyvalue(table, key, value, false); }
+void table_add(struct table *table, const void *key, void *value) { table_newkeyvalue(table, key, value, false); }
 
-void table_replace(struct table *table, void *key, void *value) { table_newkeyvalue(table, key, value, true); }
+void table_replace(struct table *table, const void *key, void *value) { table_newkeyvalue(table, key, value, true); }
 
-void *table_remove(struct table *table, void *key) {
+void *table_remove(struct table *table, const void *key) {
 	void *result = NULL;
 	struct bucket *next, **bucket = table_get_bucket(table, key);
 	if (*bucket) {

@@ -65,20 +65,14 @@ static void eat_string(struct tokenizer *tokenizer) {
 	}
 }
 
-static void eat_option(struct tokenizer *tokenizer) {
-	while (*tokenizer->at && !isspace(*tokenizer->at)) {
-		advance(tokenizer);
-	}
-}
-
-static inline bool isidentifier(char c) { return isalpha(c) || c == '_'; }
+static inline bool isidentifier_start(char c) { return isalpha(c) || c == '_'; }
 
 static void eat_identifier(struct tokenizer *tokenizer) {
-	while ((*tokenizer->at) && isidentifier(*tokenizer->at)) {
+	if (isidentifier_start(*tokenizer->at)) {
 		advance(tokenizer);
 	}
 
-	while ((*tokenizer->at) && isdigit(*tokenizer->at)) {
+	while (isdigit(*tokenizer->at) || isidentifier_start(*tokenizer->at)) {
 		advance(tokenizer);
 	}
 }
@@ -103,7 +97,17 @@ static enum token_type resolve_identifier_type(struct token token) {
 	return Token_Identifier;
 }
 
-struct token peek_token(struct tokenizer tokenizer) { return get_token(&tokenizer); }
+static void do_special_identifier(struct tokenizer *tokenizer, struct token *t, enum token_type type) {
+	t->text = tokenizer->at;
+	t->line = tokenizer->line;
+	t->cursor = tokenizer->cursor;
+
+	eat_identifier(tokenizer);
+	t->length = tokenizer->at - t->text;
+	t->type = type;
+}
+
+struct token peek_token(struct tokenizer *tokenizer) { return get_token(tokenizer); }
 
 struct token get_token(struct tokenizer *tokenizer) {
 	struct token token;
@@ -131,12 +135,6 @@ struct token get_token(struct tokenizer *tokenizer) {
 	case '<': {
 		token.type = Token_Insert;
 	} break;
-	case '@': {
-		token.type = Token_Capture;
-	} break;
-	case '~': {
-		token.type = Token_Unbound;
-	} break;
 	case '*': {
 		token.type = Token_Wildcard;
 	} break;
@@ -145,15 +143,6 @@ struct token get_token(struct tokenizer *tokenizer) {
 	} break;
 	case ']': {
 		token.type = Token_EndList;
-	} break;
-	case '.': {
-		token.text = tokenizer->at;
-		token.line = tokenizer->line;
-		token.cursor = tokenizer->cursor;
-
-		eat_option(tokenizer);
-		token.length = tokenizer->at - token.text;
-		token.type = Token_Option;
 	} break;
 	case '"': {
 		token.text = tokenizer->at;
@@ -171,7 +160,7 @@ struct token get_token(struct tokenizer *tokenizer) {
 		token = get_token(tokenizer);
 	} break;
 	case '-': {
-		if (*tokenizer->at && *tokenizer->at == '>') {
+		if (*tokenizer->at == '>') {
 			advance(tokenizer);
 			token.length = tokenizer->at - token.text;
 			token.type = Token_Arrow;
@@ -179,42 +168,35 @@ struct token get_token(struct tokenizer *tokenizer) {
 			token.type = Token_Dash;
 		}
 	} break;
-	case ';': {
+	case ':': {
 		eat_whitespace(tokenizer);
 
 		token.text = tokenizer->at;
 		token.line = tokenizer->line;
 		token.cursor = tokenizer->cursor;
 
-		eat_identifier(tokenizer);
+		eat_command(tokenizer);
 		token.length = tokenizer->at - token.text;
-		token.type = Token_Activate;
+		token.type = Token_Command;
 	} break;
-	case ':': {
-		if (*tokenizer->at && *tokenizer->at == ':') {
-			advance(tokenizer);
-			token.length = tokenizer->at - token.text;
-			token.type = Token_Decl;
-		} else {
-			eat_whitespace(tokenizer);
-
-			token.text = tokenizer->at;
-			token.line = tokenizer->line;
-			token.cursor = tokenizer->cursor;
-
-			eat_command(tokenizer);
-			token.length = tokenizer->at - token.text;
-			token.type = Token_Command;
-		}
+	// special identifiers
+	case '.': {
+		do_special_identifier(tokenizer, &token, Token_Option);
 	} break;
 	case '$': {
-		token.text = tokenizer->at;
-		token.line = tokenizer->line;
-		token.cursor = tokenizer->cursor;
-
-		eat_identifier(tokenizer);
-		token.length = tokenizer->at - token.text;
-		token.type = Token_Alias;
+		do_special_identifier(tokenizer, &token, Token_Alias);
+	} break;
+	case '@': {
+		do_special_identifier(tokenizer, &token, Token_Event);
+	} break;
+	case '|': {
+		if (*tokenizer->at == '>') {
+			advance(tokenizer);
+			token.length = tokenizer->at - token.text;
+			token.type = Token_ModeArrow;
+		} else {
+			do_special_identifier(tokenizer, &token, Token_Mode);
+		}
 	} break;
 	default: {
 		if (c == '0' && *tokenizer->at == 'x') {

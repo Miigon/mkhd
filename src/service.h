@@ -11,7 +11,8 @@
 
 #define _MKHD_PLIST                                                                                                                                            \
 	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"                                                                                                             \
-	"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"                                             \
+	"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "                                                                                                  \
+	"\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"                                                                                                    \
 	"<plist version=\"1.0\">\n"                                                                                                                                \
 	"<dict>\n"                                                                                                                                                 \
 	"    <key>Label</key>\n"                                                                                                                                   \
@@ -220,7 +221,9 @@ static int service_uninstall(void) {
 static int service_start(void) {
 	char *mkhd_plist_path = populate_plist_path();
 	if (!file_exists(mkhd_plist_path)) {
-		warn("mkhd: service file '%s' is not installed! attempting installation..\n", mkhd_plist_path);
+		warn("mkhd: service file '%s' is not installed! attempting "
+			 "installation..\n",
+			 mkhd_plist_path);
 
 		int result = service_install_internal(mkhd_plist_path);
 		if (result) {
@@ -306,8 +309,8 @@ static int service_stop(void) {
 	if (is_bootstrapped != 0) {
 		//
 		// NOTE(koekeishiya): Service is not bootstrapped, but the program
-		// could still be running an instance that was started **while the service
-		// was bootstrapped**, so we tell it to stop said service.
+		// could still be running an instance that was started **while the
+		// service was bootstrapped**, so we tell it to stop said service.
 		//
 
 		const char *const args[] = {_PATH_LAUNCHCTL, "kill", "SIGTERM", service_target, NULL};
@@ -319,8 +322,8 @@ static int service_stop(void) {
 		// not trigger automatically in the future.
 		//
 		// This is NOT the same as disabling the service, which will prevent
-		// it from being boostrapped in the future (without explicitly re-enabling
-		// it first).
+		// it from being boostrapped in the future (without explicitly
+		// re-enabling it first).
 		//
 
 		const char *const args[] = {_PATH_LAUNCHCTL, "bootout", domain_target, mkhd_plist_path, NULL};

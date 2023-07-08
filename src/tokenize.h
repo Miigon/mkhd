@@ -55,23 +55,20 @@ static const char *literal_keycode_str[] = {"return",
 
 enum token_type {
 	Token_Identifier,
-	Token_Activate,
-
 	Token_Command,
 	Token_Modifier,
 	Token_Literal,
 	Token_Key_Hex,
 	Token_Key,
+	Token_Mode, // "!mode_name"
 
-	Token_Decl,
 	Token_Comma,
 	Token_Insert,
 	Token_Plus,
 	Token_Dash,
-	Token_Arrow,
-	Token_Capture,
-	Token_Unbound,
-	Token_Wildcard,
+	Token_ModeArrow, // |>
+	Token_Arrow,	 // ->
+	Token_Wildcard,	 // *
 	Token_String,
 	Token_Option,
 
@@ -79,6 +76,7 @@ enum token_type {
 	Token_EndList,
 
 	Token_Alias,
+	Token_Event,
 
 	Token_Unknown,
 	Token_EndOfStream,
@@ -102,5 +100,5 @@ struct tokenizer {
 
 void tokenizer_init(struct tokenizer *tokenizer, char *buffer);
 struct token get_token(struct tokenizer *tokenizer);
-struct token peek_token(struct tokenizer tokenizer);
+struct token peek_token(struct tokenizer *tokenizer);
 int token_equals(struct token token, const char *match);

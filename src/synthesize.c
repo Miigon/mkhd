@@ -12,24 +12,24 @@
 
 static inline void create_and_post_keyevent(uint16_t key, bool pressed) { CGPostKeyboardEvent((CGCharCode)0, (CGKeyCode)key, pressed); }
 
-static inline void synthesize_modifiers(struct hotkey *hotkey, bool pressed) {
-	if (has_flags(hotkey, Hotkey_Flag_Alt)) {
+static inline void synthesize_modifiers(struct keyevent *key, bool pressed) {
+	if (has_flags(key, Hotkey_Flag_Alt)) {
 		create_and_post_keyevent(Modifier_Keycode_Alt, pressed);
 	}
 
-	if (has_flags(hotkey, Hotkey_Flag_Shift)) {
+	if (has_flags(key, Hotkey_Flag_Shift)) {
 		create_and_post_keyevent(Modifier_Keycode_Shift, pressed);
 	}
 
-	if (has_flags(hotkey, Hotkey_Flag_Cmd)) {
+	if (has_flags(key, Hotkey_Flag_Cmd)) {
 		create_and_post_keyevent(Modifier_Keycode_Cmd, pressed);
 	}
 
-	if (has_flags(hotkey, Hotkey_Flag_Control)) {
+	if (has_flags(key, Hotkey_Flag_Control)) {
 		create_and_post_keyevent(Modifier_Keycode_Ctrl, pressed);
 	}
 
-	if (has_flags(hotkey, Hotkey_Flag_Fn)) {
+	if (has_flags(key, Hotkey_Flag_Fn)) {
 		create_and_post_keyevent(Modifier_Keycode_Fn, pressed);
 	}
 }
@@ -46,9 +46,9 @@ bool synthesize_key(char *key_string) {
 		close(2);
 	}
 
-	struct hotkey hotkey;
-	memset(&hotkey, 0, sizeof(hotkey));
-	if (!parse_keypress(&parser, &hotkey, false)) {
+	struct keyevent keyevent;
+	memset(&keyevent, 0, sizeof(keyevent));
+	if (!parse_keyevent(&parser, &keyevent, false)) {
 		if (parser.error) {
 			return false;
 		}
@@ -57,11 +57,11 @@ bool synthesize_key(char *key_string) {
 	CGSetLocalEventsSuppressionInterval(0.0f);
 	CGEnableEventStateCombining(false);
 
-	synthesize_modifiers(&hotkey, true);
-	create_and_post_keyevent(hotkey.key, true);
+	synthesize_modifiers(&keyevent, true);
+	create_and_post_keyevent(keyevent.key, true);
 
-	create_and_post_keyevent(hotkey.key, false);
-	synthesize_modifiers(&hotkey, false);
+	create_and_post_keyevent(keyevent.key, false);
+	synthesize_modifiers(&keyevent, false);
 	return true;
 }
 

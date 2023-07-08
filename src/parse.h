@@ -25,7 +25,7 @@ struct parser {
 };
 
 bool parse_config(struct parser *parser);
-bool parse_keypress(struct parser *parser, struct hotkey *hotkey, bool allow_no_keycode);
+bool parse_keyevent(struct parser *parser, struct keyevent *hotkey, bool allow_no_keycode);
 
 struct token parser_peek(struct parser *parser);
 struct token parser_previous(struct parser *parser);

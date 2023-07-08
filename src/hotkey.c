@@ -1,6 +1,7 @@
 #include "hotkey.h"
 
 #include "carbon.h"
+#include "log.h"
 #include "sbuffer.h"
 #include "utils.h"
 
@@ -28,7 +29,7 @@ static uint32_t hotkey_lrmod_flag[] = {
 	Hotkey_Flag_Cmd, Hotkey_Flag_LCmd, Hotkey_Flag_RCmd, Hotkey_Flag_Control, Hotkey_Flag_LControl, Hotkey_Flag_RControl,
 };
 
-static bool compare_lr_mod(struct hotkey *a, struct hotkey *b, int mod) {
+static bool compare_lr_mod(struct keyevent *a, struct keyevent *b, int mod) {
 	bool result =
 		has_flags(a, hotkey_lrmod_flag[mod])
 			? has_flags(b, hotkey_lrmod_flag[mod + LMOD_OFFS]) || has_flags(b, hotkey_lrmod_flag[mod + RMOD_OFFS]) || has_flags(b, hotkey_lrmod_flag[mod])
@@ -38,16 +39,16 @@ static bool compare_lr_mod(struct hotkey *a, struct hotkey *b, int mod) {
 	return result;
 }
 
-static bool compare_fn(struct hotkey *a, struct hotkey *b) { return has_flags(a, Hotkey_Flag_Fn) == has_flags(b, Hotkey_Flag_Fn); }
+static bool compare_fn(struct keyevent *a, struct keyevent *b) { return has_flags(a, Hotkey_Flag_Fn) == has_flags(b, Hotkey_Flag_Fn); }
 
-static bool compare_nx(struct hotkey *a, struct hotkey *b) { return has_flags(a, Hotkey_Flag_NX) == has_flags(b, Hotkey_Flag_NX); }
+static bool compare_nx(struct keyevent *a, struct keyevent *b) { return has_flags(a, Hotkey_Flag_NX) == has_flags(b, Hotkey_Flag_NX); }
 
-bool same_hotkey(struct hotkey *a, struct hotkey *b) {
+bool compare_keyevent(struct keyevent *a, struct keyevent *b) {
 	return compare_lr_mod(a, b, LRMOD_ALT) && compare_lr_mod(a, b, LRMOD_CMD) && compare_lr_mod(a, b, LRMOD_CTRL) && compare_lr_mod(a, b, LRMOD_SHIFT) &&
 		   compare_fn(a, b) && compare_nx(a, b) && a->key == b->key;
 }
 
-unsigned long hash_hotkey(struct hotkey *a) { return a->key; }
+unsigned long hash_keyevent(struct keyevent *a) { return a->key; }
 
 bool compare_string(char *a, char *b) {
 	while (*a && *b && *a == *b) {
@@ -70,124 +71,104 @@ unsigned long hash_string(char *key) {
 	return hash;
 }
 
-static inline void fork_and_exec(char *command) {
+static inline void fork_and_exec(const char *command) {
 	int cpid = fork();
 	if (cpid == 0) {
 		setsid();
-		char *exec[] = {shell, arg, command, NULL};
+		char *exec[] = {shell, arg, (char *)command, NULL};
 		int status_code = execvp(exec[0], exec);
 		exit(status_code);
 	}
 }
 
-static inline void passthrough(struct hotkey *hotkey, uint32_t *capture) { *capture |= HOTKEY_PASSTHROUGH((int)has_flags(hotkey, Hotkey_Flag_Passthrough)); }
-
-static inline struct hotkey *find_hotkey(struct mode *mode, struct hotkey *hotkey, uint32_t *capture) {
-	struct hotkey *result = table_find(&mode->hotkey_map, hotkey);
-	if (result)
-		*capture |= HOTKEY_FOUND;
-	return result;
-}
-
-static inline bool should_capture_hotkey(uint32_t capture) {
-	if ((capture & HOTKEY_FOUND)) {
-		if (!(capture & MODE_CAPTURE(1)) && !(capture & HOTKEY_PASSTHROUGH(1))) {
-			return true;
-		}
-
-		if (!(capture & HOTKEY_PASSTHROUGH(1)) && (capture & MODE_CAPTURE(1))) {
-			return true;
-		}
-
-		return false;
-	}
-
-	return (capture & MODE_CAPTURE(1));
-}
-
-static inline char *find_process_command_mapping(struct hotkey *hotkey, uint32_t *capture, struct carbon_event *carbon) {
-	char *result = NULL;
+static inline struct action *find_process_action(struct hotkey *hotkey, const char *process_name) {
+	struct action *result = NULL;
 	bool found = false;
 
-	for (int i = 0; i < buf_len(hotkey->process_name); ++i) {
-		if (same_string(carbon->process_name, hotkey->process_name[i])) {
-			result = hotkey->command[i];
+	for (int i = 0; i < buf_len(hotkey->process_names); ++i) {
+		if (same_string(process_name, hotkey->process_names[i])) {
+			result = hotkey->actions[i];
 			found = true;
 			break;
 		}
 	}
 
 	if (!found)
-		result = hotkey->wildcard_command;
-	if (!result)
-		*capture &= ~HOTKEY_FOUND;
+		result = hotkey->process_default_action;
 
 	return result;
 }
 
-bool find_and_exec_hotkey(struct hotkey *k, struct table *t, struct mode **m, struct carbon_event *carbon) {
-	uint32_t c = MODE_CAPTURE((int)(*m)->capture);
-	for (struct hotkey *h = find_hotkey(*m, k, &c); h; passthrough(h, &c), h = 0) {
-		char *cmd = h->command[0];
-		if (has_flags(h, Hotkey_Flag_Activate)) {
-			*m = table_find(t, cmd);
-			cmd = (*m)->command;
-		} else if (buf_len(h->process_name) > 0) {
-			cmd = find_process_command_mapping(h, &c, carbon);
+bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name) {
+	struct mode *in_mode = MS_CURRENT_MODE(mstate);
+
+	// do action
+	while (true) {
+		struct hotkey *hotkey = table_find(&in_mode->hotkey_map, event);
+		struct action *action = find_process_action(hotkey, process_name);
+		switch (action->type) {
+		// === non-terminating actions ===
+		case Action_PassMode:
+			MS_CURRENT_MODE(mstate) = table_find(&mstate->mode_map, action->argument);
+			continue;
+		case Action_Fallthrough: {
+			if (mstate->modestack_cnt == 1) {
+				// special case: `-> |.fallthrough` at the lowest mode frame is the same as `-> |.nocapture`
+				return false;
+			}
+			mstate->modestack_cnt--;
+			in_mode = mstate->modestack[mstate->modestack_cnt - 1];
 		}
-		if (cmd)
-			fork_and_exec(cmd);
+		// === terminating actions ===
+		case Action_NoOp:
+			return true; // capture
+		case Action_Command:
+			fork_and_exec(action->argument);
+			return true; // capture
+		case Action_ModeSwitch: {
+			struct mode *new_mode = table_find(&mstate->mode_map, action->argument);
+			mstate->modestack[mstate->modestack_cnt++] = new_mode;
+
+			if (mstate->modestack_cnt >= MODESTACK_MAX) {
+				warn("mode stack overflow! (max %d) maybe you have a passing (->) loop in your config?\n", MODESTACK_MAX - 1);
+				warn("last 5 mode stack frame: ... -> |%s -> |%s -> |%s -> |%s -> |%s", mstate->modestack[MODESTACK_MAX - 5]->name,
+					 mstate->modestack[MODESTACK_MAX - 4]->name, mstate->modestack[MODESTACK_MAX - 3]->name, mstate->modestack[MODESTACK_MAX - 2]->name,
+					 mstate->modestack[MODESTACK_MAX - 1]->name);
+				return false; // no capture
+			}
+			return true; // capture
+		}
+		case Action_PopMode: {
+			mstate->modestack_cnt--;
+			return true; // capture
+		case Action_PassNocapture:
+			return false; // no capture
+		}
+		}
+		// unreachable
 	}
-	return should_capture_hotkey(c);
+}
+
+struct mode *create_new_mode(const char *name) {
+	struct mode *mode = malloc(sizeof(struct mode));
+	memset(mode, 0, sizeof(struct mode));
+	mode->name = copy_string_malloc(name);
+
+	table_init(&mode->hotkey_map, 131, (table_hash_func)hash_keyevent, (table_compare_func)compare_keyevent);
+
+	static struct action fallthrough = {.type = Action_Fallthrough, .argument = NULL};
+	static struct action noop = {.type = Action_NoOp, .argument = NULL};
+
+	mode->on_unmatched = &fallthrough;
+	mode->on_enter_mode = &noop;
+	mode->on_exit_mode = &noop;
+
+	return mode;
 }
 
 void free_mode_map(struct table *mode_map) {
-	struct hotkey **freed_pointers = NULL;
-
-	int mode_count;
-	void **modes = table_reset(mode_map, &mode_count);
-	for (int mode_index = 0; mode_index < mode_count; ++mode_index) {
-		struct mode *mode = (struct mode *)modes[mode_index];
-
-		int hk_count;
-		void **hotkeys = table_reset(&mode->hotkey_map, &hk_count);
-		for (int hk_index = 0; hk_index < hk_count; ++hk_index) {
-			struct hotkey *hotkey = (struct hotkey *)hotkeys[hk_index];
-
-			for (int i = 0; i < buf_len(freed_pointers); ++i) {
-				if (freed_pointers[i] == hotkey) {
-					goto next;
-				}
-			}
-
-			buf_push(freed_pointers, hotkey);
-			buf_free(hotkey->mode_list);
-
-			for (int i = 0; i < buf_len(hotkey->process_name); ++i) {
-				free(hotkey->process_name[i]);
-			}
-			buf_free(hotkey->process_name);
-
-			for (int i = 0; i < buf_len(hotkey->command); ++i) {
-				free(hotkey->command[i]);
-			}
-			buf_free(hotkey->command);
-
-			free(hotkey);
-		next:;
-		}
-
-		if (hk_count)
-			free(hotkeys);
-		if (mode->command)
-			free(mode->command);
-		if (mode->name)
-			free(mode->name);
-		free(mode);
-	}
-
-	free(modes);
-	buf_free(freed_pointers);
+	// temporarily no-op
+	// todo: implement tracked malloc
 }
 
 void free_blacklist(struct table *blacklst) {
@@ -243,13 +224,12 @@ static uint32_t cgevent_flags_to_hotkey_flags(uint32_t eventflags) {
 	return flags;
 }
 
-struct hotkey create_eventkey(CGEventRef event) {
-	struct hotkey eventkey = {.key = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode),
-							  .flags = cgevent_flags_to_hotkey_flags(CGEventGetFlags(event))};
-	return eventkey;
+struct keyevent create_keyevent_from_CGEvent(CGEventRef event) {
+	return (struct keyevent){.key = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode),
+							 .flags = cgevent_flags_to_hotkey_flags(CGEventGetFlags(event))};
 }
 
-bool intercept_systemkey(CGEventRef event, struct hotkey *eventkey) {
+bool intercept_systemkey(CGEventRef event, struct keyevent *eventkey) {
 	CFDataRef event_data = CGEventCreateData(kCFAllocatorDefault, event);
 	const uint8_t *data = CFDataGetBytePtr(event_data);
 	uint8_t key_code = data[129];

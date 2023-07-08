@@ -1,3 +1,5 @@
+#include "mkhd.h"
+
 #include <Carbon/Carbon.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <fcntl.h>
@@ -57,10 +59,7 @@ extern CGError CGSRegisterNotifyProc(void *handler, uint32_t type, void *context
 static struct carbon_event carbon;
 static struct event_tap event_tap;
 static struct hotloader hotloader;
-static struct mode *current_mode;
-static struct table mode_map;
-static struct table blacklst;
-static struct table alias_map;
+static struct mkhd_state g_mstate;
 static bool thwart_hotloader;
 static char config_file[4096];
 
@@ -70,7 +69,7 @@ static HOTLOADER_CALLBACK(config_handler);
 
 static void parse_config_helper(char *absolutepath) {
 	struct parser parser;
-	if (parser_init(&parser, &mode_map, &blacklst, &alias_map, absolutepath)) {
+	if (parser_init(&parser, &g_mstate.mode_map, &g_mstate.blacklst, &g_mstate.alias_map, absolutepath)) {
 		if (!thwart_hotloader) {
 			hotloader_end(&hotloader);
 			hotloader_add_file(&hotloader, absolutepath);
@@ -86,20 +85,21 @@ static void parse_config_helper(char *absolutepath) {
 				debug("mkhd: watching files for changes:\n", absolutepath);
 				hotloader_debug(&hotloader);
 			} else {
-				warn("mkhd: could not start watcher.. hotloading is not enabled\n");
+				warn("mkhd: could not start watcher.. hotloading is not "
+					 "enabled\n");
 			}
 		}
 	} else {
 		warn("mkhd: could not open file '%s'\n", absolutepath);
 	}
-
-	current_mode = table_find(&mode_map, "default");
 }
 
 static void free_tables() {
-	free_mode_map(&mode_map);
-	free_blacklist(&blacklst);
-	free_alias_map(&alias_map);
+	// temporarily no-op
+
+	// free_mode_map(&g_mstate.mode_map);
+	// free_blacklist(&g_mstate.blacklst);
+	// free_alias_map(&g_mstate.alias_map);
 }
 
 static HOTLOADER_CALLBACK(config_handler) {
@@ -158,28 +158,24 @@ static EVENT_TAP_CALLBACK(key_handler) {
 		CGEventTapEnable(event_tap->handle, 1);
 	} break;
 	case kCGEventKeyDown: {
-		if (table_find(&blacklst, carbon.process_name))
-			return event;
-		if (!current_mode)
+		if (table_find(&g_mstate.blacklst, carbon.process_name))
 			return event;
 
 		BEGIN_TIMED_BLOCK("handle_keypress");
-		struct hotkey eventkey = create_eventkey(event);
-		bool result = find_and_exec_hotkey(&eventkey, &mode_map, &current_mode, &carbon);
+		struct keyevent eventkey = create_keyevent_from_CGEvent(event);
+		bool result = find_and_exec_keyevent(&g_mstate, &eventkey, carbon.process_name);
 		END_TIMED_BLOCK();
 
 		if (result)
 			return NULL;
 	} break;
 	case NX_SYSDEFINED: {
-		if (table_find(&blacklst, carbon.process_name))
-			return event;
-		if (!current_mode)
+		if (table_find(&g_mstate.blacklst, carbon.process_name))
 			return event;
 
-		struct hotkey eventkey;
+		struct keyevent eventkey;
 		if (intercept_systemkey(event, &eventkey)) {
-			bool result = find_and_exec_hotkey(&eventkey, &mode_map, &current_mode, &carbon);
+			bool result = find_and_exec_keyevent(&g_mstate, &eventkey, carbon.process_name);
 			if (result)
 				return NULL;
 		}
@@ -204,7 +200,8 @@ static pid_t read_pid_file(void) {
 	if (user) {
 		snprintf(pid_file, sizeof(pid_file), MKHD_PIDFILE_FMT, user);
 	} else {
-		error("mkhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
+		error("mkhd: could not create path to pid-file because 'env USER' was "
+			  "not set! abort..\n");
 	}
 
 	int handle = open(pid_file, O_RDWR);
@@ -230,7 +227,8 @@ static void create_pid_file(void) {
 	if (user) {
 		snprintf(pid_file, sizeof(pid_file), MKHD_PIDFILE_FMT, user);
 	} else {
-		error("mkhd: could not create path to pid-file because 'env USER' was not set! abort..\n");
+		error("mkhd: could not create path to pid-file because 'env USER' was "
+			  "not set! abort..\n");
 	}
 
 	int handle = open(pid_file, O_CREAT | O_RDWR, 0644);
@@ -403,6 +401,15 @@ static void dump_secure_keyboard_entry_process_info(void) {
 	}
 }
 
+void init_mstate(struct mkhd_state *mstate) {
+	table_init(&g_mstate.mode_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate.blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate.alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+
+	g_mstate.modestack[0] = create_new_mode(DEFAULT_MODE);
+	g_mstate.modestack_cnt = 1;
+}
+
 int main(int argc, char **argv) {
 	if (getuid() == 0 || geteuid() == 0) {
 		require("mkhd: running as root is not allowed! abort..\n");
@@ -421,7 +428,11 @@ int main(int argc, char **argv) {
 	}
 
 	if (!check_privileges()) {
-		require("mkhd: must be run with accessibility access! abort..\n");
+		if (verbose)
+			debug("mkhd: no accessibility access, hotkeys will not work. (not "
+				  "exited because --verbose)\n");
+		else
+			require("mkhd: must be run with accessibility access!\n");
 	}
 
 	if (!initialize_keycode_map()) {
@@ -443,9 +454,8 @@ int main(int argc, char **argv) {
 	signal(SIGUSR1, sigusr1_handler);
 
 	init_shell();
-	table_init(&mode_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-	table_init(&blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-	table_init(&alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	init_mstate(&g_mstate);
+
 	END_SCOPED_TIMED_BLOCK();
 
 	BEGIN_SCOPED_TIMED_BLOCK("parse_config");
