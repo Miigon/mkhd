@@ -8,9 +8,9 @@
 #include "log.h"
 #include "utils.h"
 
-#define FSEVENT_CALLBACK(name)                                                                                                                                 \
-	void name(ConstFSEventStreamRef stream, void *context, size_t file_count, void *file_paths, const FSEventStreamEventFlags *flags,                          \
-			  const FSEventStreamEventId *ids)
+#define FSEVENT_CALLBACK(name)                                                                                         \
+	void name(ConstFSEventStreamRef stream, void *context, size_t file_count, void *file_paths,                        \
+			  const FSEventStreamEventFlags *flags, const FSEventStreamEventId *ids)
 
 enum watch_kind { WATCH_KIND_INVALID, WATCH_KIND_CATALOG, WATCH_KIND_FILE };
 
@@ -79,7 +79,9 @@ static char *same_catalog(char *absolutepath, struct watched_catalog *catalog_in
 	*last_slash = '\0';
 
 	if (same_string(absolutepath, catalog_info->directory)) {
-		filename = !catalog_info->extension ? last_slash + 1 : same_string(catalog_info->extension, strrchr(last_slash + 1, '.')) ? last_slash + 1 : NULL;
+		filename = !catalog_info->extension												? last_slash + 1
+				   : same_string(catalog_info->extension, strrchr(last_slash + 1, '.')) ? last_slash + 1
+																						: NULL;
 	}
 
 	// NOTE(koekeisihya): revert '/' to restore filename
@@ -113,7 +115,8 @@ static FSEVENT_CALLBACK(hotloader_handler) {
 				if (!match)
 					continue;
 
-				hotloader->callback(watch_info->file_info.absolutepath, watch_info->file_info.directory, watch_info->file_info.filename);
+				hotloader->callback(watch_info->file_info.absolutepath, watch_info->file_info.directory,
+									watch_info->file_info.filename);
 				break;
 			}
 		}
@@ -123,12 +126,14 @@ static FSEVENT_CALLBACK(hotloader_handler) {
 static inline void hotloader_add_watched_entry(struct hotloader *hotloader, struct watched_entry entry) {
 	if (!hotloader->watch_list) {
 		hotloader->watch_capacity = 32;
-		hotloader->watch_list = (struct watched_entry *)malloc(hotloader->watch_capacity * sizeof(struct watched_entry));
+		hotloader->watch_list =
+			(struct watched_entry *)malloc(hotloader->watch_capacity * sizeof(struct watched_entry));
 	}
 
 	if (hotloader->watch_count >= hotloader->watch_capacity) {
 		hotloader->watch_capacity = (unsigned)ceil(hotloader->watch_capacity * 1.5f);
-		hotloader->watch_list = (struct watched_entry *)realloc(hotloader->watch_list, hotloader->watch_capacity * sizeof(struct watched_entry));
+		hotloader->watch_list = (struct watched_entry *)realloc(
+			hotloader->watch_list, hotloader->watch_capacity * sizeof(struct watched_entry));
 	}
 
 	hotloader->watch_list[hotloader->watch_count++] = entry;
@@ -147,8 +152,10 @@ bool hotloader_add_catalog(struct hotloader *hotloader, const char *directory, c
 		return false;
 
 	hotloader_add_watched_entry(
-		hotloader, (struct watched_entry){.kind = WATCH_KIND_CATALOG,
-										  .catalog_info = {.directory = real_path, .extension = extension ? copy_string_malloc(extension) : NULL}});
+		hotloader,
+		(struct watched_entry){
+			.kind = WATCH_KIND_CATALOG,
+			.catalog_info = {.directory = real_path, .extension = extension ? copy_string_malloc(extension) : NULL}});
 
 	return true;
 }
@@ -165,9 +172,10 @@ bool hotloader_add_file(struct hotloader *hotloader, const char *file) {
 	if (kind != WATCH_KIND_FILE)
 		return false;
 
-	hotloader_add_watched_entry(
-		hotloader, (struct watched_entry){.kind = WATCH_KIND_FILE,
-										  .file_info = {.absolutepath = real_path, .directory = file_directory(real_path), .filename = file_name(real_path)}});
+	hotloader_add_watched_entry(hotloader, (struct watched_entry){.kind = WATCH_KIND_FILE,
+																  .file_info = {.absolutepath = real_path,
+																				.directory = file_directory(real_path),
+																				.filename = file_name(real_path)}});
 
 	return true;
 }
@@ -185,17 +193,20 @@ bool hotloader_begin(struct hotloader *hotloader, hotloader_callback *callback) 
 	CFStringRef string_refs[hotloader->watch_count];
 	for (unsigned index = 0; index < hotloader->watch_count; ++index) {
 		struct watched_entry *watch_info = hotloader->watch_list + index;
-		char *directory = watch_info->kind == WATCH_KIND_FILE ? watch_info->file_info.directory : watch_info->catalog_info.directory;
+		char *directory =
+			watch_info->kind == WATCH_KIND_FILE ? watch_info->file_info.directory : watch_info->catalog_info.directory;
 		string_refs[index] = CFStringCreateWithCString(kCFAllocatorDefault, directory, kCFStringEncodingUTF8);
 	}
 
 	FSEventStreamContext context = {.info = hotloader};
 
-	hotloader->path = (CFArrayRef)CFArrayCreate(NULL, (const void **)string_refs, hotloader->watch_count, &kCFTypeArrayCallBacks);
+	hotloader->path =
+		(CFArrayRef)CFArrayCreate(NULL, (const void **)string_refs, hotloader->watch_count, &kCFTypeArrayCallBacks);
 
 	hotloader->flags = kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagFileEvents;
 
-	hotloader->stream = FSEventStreamCreate(NULL, hotloader_handler, &context, hotloader->path, kFSEventStreamEventIdSinceNow, 0.5, hotloader->flags);
+	hotloader->stream = FSEventStreamCreate(NULL, hotloader_handler, &context, hotloader->path,
+											kFSEventStreamEventIdSinceNow, 0.5, hotloader->flags);
 
 	FSEventStreamScheduleWithRunLoop(hotloader->stream, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
 

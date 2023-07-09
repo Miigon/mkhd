@@ -1,7 +1,8 @@
 #pragma once
 
 static const char *modifier_flags_str[] = {
-	"alt", "lalt", "ralt", "shift", "lshift", "rshift", "cmd", "lcmd", "rcmd", "ctrl", "lctrl", "rctrl", "fn", "hyper", "meh",
+	"alt",	"lalt", "ralt",	 "shift", "lshift", "rshift", "cmd", "lcmd",
+	"rcmd", "ctrl", "lctrl", "rctrl", "fn",		"hyper",  "meh",
 };
 
 static const char *literal_keycode_str[] = {"return",

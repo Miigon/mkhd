@@ -280,9 +280,15 @@ static bool parse_arguments(int argc, char **argv) {
 
 	int option;
 	const char *short_option = "VPvc:k:t:rho";
-	struct option long_option[] = {{"verbose", no_argument, NULL, 'V'},	   {"profile", no_argument, NULL, 'P'},	  {"config", required_argument, NULL, 'c'},
-								   {"no-hotload", no_argument, NULL, 'h'}, {"key", required_argument, NULL, 'k'}, {"text", required_argument, NULL, 't'},
-								   {"reload", no_argument, NULL, 'r'},	   {"observe", no_argument, NULL, 'o'},	  {NULL, 0, NULL, 0}};
+	struct option long_option[] = {{"verbose", no_argument, NULL, 'V'},
+								   {"profile", no_argument, NULL, 'P'},
+								   {"config", required_argument, NULL, 'c'},
+								   {"no-hotload", no_argument, NULL, 'h'},
+								   {"key", required_argument, NULL, 'k'},
+								   {"text", required_argument, NULL, 't'},
+								   {"reload", no_argument, NULL, 'r'},
+								   {"observe", no_argument, NULL, 'o'},
+								   {NULL, 0, NULL, 0}};
 
 	while ((option = getopt_long(argc, argv, short_option, long_option, NULL)) != -1) {
 		switch (option) {
@@ -331,8 +337,8 @@ static bool check_privileges(void) {
 	const void *values[] = {kCFBooleanTrue};
 
 	CFDictionaryRef options;
-	options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, sizeof(keys) / sizeof(*keys), &kCFCopyStringDictionaryKeyCallBacks,
-								 &kCFTypeDictionaryValueCallBacks);
+	options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, sizeof(keys) / sizeof(*keys),
+								 &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
 	result = AXIsProcessTrustedWithOptions(options);
 	CFRelease(options);
@@ -450,7 +456,8 @@ int main(int argc, char **argv) {
 		get_config_file("mkhdrc", config_file, sizeof(config_file));
 	}
 
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), NULL, &keymap_handler, kTISNotifySelectedKeyboardInputSourceChanged, NULL,
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), NULL, &keymap_handler,
+									kTISNotifySelectedKeyboardInputSourceChanged, NULL,
 									CFNotificationSuspensionBehaviorCoalesce);
 
 	signal(SIGCHLD, SIG_IGN);

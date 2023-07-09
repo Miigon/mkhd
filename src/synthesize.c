@@ -10,7 +10,9 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated"
 
-static inline void create_and_post_keyevent(uint16_t key, bool pressed) { CGPostKeyboardEvent((CGCharCode)0, (CGKeyCode)key, pressed); }
+static inline void create_and_post_keyevent(uint16_t key, bool pressed) {
+	CGPostKeyboardEvent((CGCharCode)0, (CGKeyCode)key, pressed);
+}
 
 static inline void synthesize_modifiers(struct keyevent *key, bool pressed) {
 	if (has_flags(key, Hotkey_Flag_Alt)) {

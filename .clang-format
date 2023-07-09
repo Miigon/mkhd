@@ -1,6 +1,6 @@
 Language: Cpp
 BasedOnStyle: LLVM
-ColumnLimit: 160
+ColumnLimit: 120
 UseTab: Always
 IndentWidth: 4
 TabWidth: 4

@@ -4,23 +4,23 @@
 #include <mach/mach_time.h>
 #include <stdint.h>
 
-#define BEGIN_SCOPED_TIMED_BLOCK(note)                                                                                                                         \
-	do {                                                                                                                                                       \
-		struct timing_info timing;                                                                                                                             \
-		if (profile)                                                                                                                                           \
+#define BEGIN_SCOPED_TIMED_BLOCK(note)                                                                                 \
+	do {                                                                                                               \
+		struct timing_info timing;                                                                                     \
+		if (profile)                                                                                                   \
 	begin_timing(&timing, note)
-#define END_SCOPED_TIMED_BLOCK()                                                                                                                               \
-	if (profile)                                                                                                                                               \
-		end_timing(&timing);                                                                                                                                   \
-	}                                                                                                                                                          \
+#define END_SCOPED_TIMED_BLOCK()                                                                                       \
+	if (profile)                                                                                                       \
+		end_timing(&timing);                                                                                           \
+	}                                                                                                                  \
 	while (0)
 
-#define BEGIN_TIMED_BLOCK(note)                                                                                                                                \
-	struct timing_info timing;                                                                                                                                 \
-	if (profile)                                                                                                                                               \
+#define BEGIN_TIMED_BLOCK(note)                                                                                        \
+	struct timing_info timing;                                                                                         \
+	if (profile)                                                                                                       \
 	begin_timing(&timing, note)
-#define END_TIMED_BLOCK()                                                                                                                                      \
-	if (profile)                                                                                                                                               \
+#define END_TIMED_BLOCK()                                                                                              \
+	if (profile)                                                                                                       \
 	end_timing(&timing)
 
 static bool profile;

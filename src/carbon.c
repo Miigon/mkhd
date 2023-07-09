@@ -46,7 +46,8 @@ static OSStatus carbon_event_handler(EventHandlerCallRef ref, EventRef event, vo
 	struct carbon_event *carbon = (struct carbon_event *)context;
 
 	ProcessSerialNumber psn;
-	if (GetEventParameter(event, kEventParamProcessID, typeProcessSerialNumber, NULL, sizeof(psn), NULL, &psn) != noErr) {
+	if (GetEventParameter(event, kEventParamProcessID, typeProcessSerialNumber, NULL, sizeof(psn), NULL, &psn) !=
+		noErr) {
 		return -1;
 	}
 
@@ -67,5 +68,6 @@ bool carbon_event_init(struct carbon_event *carbon) {
 	carbon->type.eventKind = kEventAppFrontSwitched;
 	carbon->process_name = find_active_process_name();
 
-	return InstallEventHandler(carbon->target, carbon->handler, 1, &carbon->type, carbon, &carbon->handler_ref) == noErr;
+	return InstallEventHandler(carbon->target, carbon->handler, 1, &carbon->type, carbon, &carbon->handler_ref) ==
+		   noErr;
 }

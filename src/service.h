@@ -9,41 +9,41 @@
 #define _NAME_MKHD_PLIST "com.koekeishiya.mkhd"
 #define _PATH_MKHD_PLIST "%s/Library/LaunchAgents/" _NAME_MKHD_PLIST ".plist"
 
-#define _MKHD_PLIST                                                                                                                                            \
-	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"                                                                                                             \
-	"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "                                                                                                  \
-	"\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"                                                                                                    \
-	"<plist version=\"1.0\">\n"                                                                                                                                \
-	"<dict>\n"                                                                                                                                                 \
-	"    <key>Label</key>\n"                                                                                                                                   \
-	"    <string>" _NAME_MKHD_PLIST "</string>\n"                                                                                                              \
-	"    <key>ProgramArguments</key>\n"                                                                                                                        \
-	"    <array>\n"                                                                                                                                            \
-	"        <string>%s</string>\n"                                                                                                                            \
-	"    </array>\n"                                                                                                                                           \
-	"    <key>EnvironmentVariables</key>\n"                                                                                                                    \
-	"    <dict>\n"                                                                                                                                             \
-	"        <key>PATH</key>\n"                                                                                                                                \
-	"        <string>%s</string>\n"                                                                                                                            \
-	"    </dict>\n"                                                                                                                                            \
-	"    <key>RunAtLoad</key>\n"                                                                                                                               \
-	"    <true/>\n"                                                                                                                                            \
-	"    <key>KeepAlive</key>\n"                                                                                                                               \
-	"    <dict>\n"                                                                                                                                             \
-	"        <key>SuccessfulExit</key>\n"                                                                                                                      \
-	" 	     <false/>\n"                                                                                                                                        \
-	" 	     <key>Crashed</key>\n"                                                                                                                              \
-	" 	     <true/>\n"                                                                                                                                         \
-	"    </dict>\n"                                                                                                                                            \
-	"    <key>StandardOutPath</key>\n"                                                                                                                         \
-	"    <string>/tmp/mkhd_%s.out.log</string>\n"                                                                                                              \
-	"    <key>StandardErrorPath</key>\n"                                                                                                                       \
-	"    <string>/tmp/mkhd_%s.err.log</string>\n"                                                                                                              \
-	"    <key>ProcessType</key>\n"                                                                                                                             \
-	"    <string>Interactive</string>\n"                                                                                                                       \
-	"    <key>Nice</key>\n"                                                                                                                                    \
-	"    <integer>-20</integer>\n"                                                                                                                             \
-	"</dict>\n"                                                                                                                                                \
+#define _MKHD_PLIST                                                                                                    \
+	"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"                                                                     \
+	"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "                                                          \
+	"\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"                                                            \
+	"<plist version=\"1.0\">\n"                                                                                        \
+	"<dict>\n"                                                                                                         \
+	"    <key>Label</key>\n"                                                                                           \
+	"    <string>" _NAME_MKHD_PLIST "</string>\n"                                                                      \
+	"    <key>ProgramArguments</key>\n"                                                                                \
+	"    <array>\n"                                                                                                    \
+	"        <string>%s</string>\n"                                                                                    \
+	"    </array>\n"                                                                                                   \
+	"    <key>EnvironmentVariables</key>\n"                                                                            \
+	"    <dict>\n"                                                                                                     \
+	"        <key>PATH</key>\n"                                                                                        \
+	"        <string>%s</string>\n"                                                                                    \
+	"    </dict>\n"                                                                                                    \
+	"    <key>RunAtLoad</key>\n"                                                                                       \
+	"    <true/>\n"                                                                                                    \
+	"    <key>KeepAlive</key>\n"                                                                                       \
+	"    <dict>\n"                                                                                                     \
+	"        <key>SuccessfulExit</key>\n"                                                                              \
+	" 	     <false/>\n"                                                                                                \
+	" 	     <key>Crashed</key>\n"                                                                                      \
+	" 	     <true/>\n"                                                                                                 \
+	"    </dict>\n"                                                                                                    \
+	"    <key>StandardOutPath</key>\n"                                                                                 \
+	"    <string>/tmp/mkhd_%s.out.log</string>\n"                                                                      \
+	"    <key>StandardErrorPath</key>\n"                                                                               \
+	"    <string>/tmp/mkhd_%s.err.log</string>\n"                                                                      \
+	"    <key>ProcessType</key>\n"                                                                                     \
+	"    <string>Interactive</string>\n"                                                                               \
+	"    <key>Nice</key>\n"                                                                                            \
+	"    <integer>-20</integer>\n"                                                                                     \
+	"</dict>\n"                                                                                                        \
 	"</plist>"
 
 //

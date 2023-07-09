@@ -6,7 +6,8 @@ bool event_tap_enabled(struct event_tap *event_tap) {
 }
 
 bool event_tap_begin(struct event_tap *event_tap, event_tap_callback *callback) {
-	event_tap->handle = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, event_tap->mask, callback, event_tap);
+	event_tap->handle = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
+										 event_tap->mask, callback, event_tap);
 
 	bool result = event_tap_enabled(event_tap);
 	if (result) {

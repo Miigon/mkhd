@@ -16,8 +16,8 @@
 #include "tokenize.h"
 #include "utils.h"
 
-#define DEFVAR_FROM_TOKEN_TEXT(var, token)                                                                                                                     \
-	char(var)[(token).length + 1];                                                                                                                             \
+#define DEFVAR_FROM_TOKEN_TEXT(var, token)                                                                             \
+	char(var)[(token).length + 1];                                                                                     \
 	copy_string_count_nomalloc((var), (token).text, (token).length);
 
 static struct layer *find_layer_or_create(struct parser *parser, const char *name) {
@@ -52,7 +52,9 @@ static char *read_file(const char *file) {
 	return buffer;
 }
 
-static bool parser_match_action(struct parser *parser) { return parser_match(parser, Token_Command) || parser_match(parser, Token_Option); }
+static bool parser_match_action(struct parser *parser) {
+	return parser_match(parser, Token_Command) || parser_match(parser, Token_Option);
+}
 
 static struct action *parse_action(struct parser *parser) {
 	struct token token = parser_previous(parser);
@@ -294,7 +296,8 @@ static bool parse_modifier(struct parser *parser, struct keyevent *keyevent) {
 			}
 
 			if (!contains_mod && !first_iter) {
-				parser_report_error(parser, alias, "alias $%.*s does not contain any modifiers\n", alias.length, alias.text);
+				parser_report_error(parser, alias, "alias $%.*s does not contain any modifiers\n", alias.length,
+									alias.text);
 				return false;
 			}
 		} else {
@@ -466,8 +469,9 @@ bool parse_config(struct parser *parser) {
 		if (parser->error)
 			break;
 
-		if (parser_check(parser, Token_Identifier) || parser_check(parser, Token_Modifier) || parser_check(parser, Token_Literal) ||
-			parser_check(parser, Token_Key_Hex) || parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Layer)) {
+		if (parser_check(parser, Token_Identifier) || parser_check(parser, Token_Modifier) ||
+			parser_check(parser, Token_Literal) || parser_check(parser, Token_Key_Hex) ||
+			parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Layer)) {
 			parse_hotkey(parser);
 		} else if (parser_check(parser, Token_Option)) {
 			parse_option(parser);
@@ -486,8 +490,9 @@ bool parse_config(struct parser *parser) {
 }
 
 bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow_no_keycode) {
-	if (!((parser_check(parser, Token_Modifier)) || (parser_check(parser, Token_Literal)) || (parser_check(parser, Token_Key_Hex)) ||
-		  (parser_check(parser, Token_Key)) || (parser_check(parser, Token_Alias)))) {
+	if (!((parser_check(parser, Token_Modifier)) || (parser_check(parser, Token_Literal)) ||
+		  (parser_check(parser, Token_Key_Hex)) || (parser_check(parser, Token_Key)) ||
+		  (parser_check(parser, Token_Alias)))) {
 		parser_report_error(parser, parser_peek(parser), "expected a hotkey\n");
 		return false;
 	}
@@ -594,7 +599,8 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 
 			parser_destroy(&directive_parser);
 		} else {
-			warn("mkhd: could not open file '%s' from load directive #%d:%d\n", load.file, load.option.line, load.option.cursor);
+			warn("mkhd: could not open file '%s' from load directive #%d:%d\n", load.file, load.option.line,
+				 load.option.cursor);
 		}
 
 		free(load.file);
@@ -607,7 +613,8 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 	}
 }
 
-bool parser_init(struct parser *parser, struct table *layer_map, struct table *blacklst, struct table *alias_map, char *file) {
+bool parser_init(struct parser *parser, struct table *layer_map, struct table *blacklst, struct table *alias_map,
+				 char *file) {
 	memset(parser, 0, sizeof(struct parser));
 	char *buffer = read_file(file);
 	if (buffer) {

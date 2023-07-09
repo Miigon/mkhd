@@ -21,27 +21,34 @@ static uint32_t cgevent_lrmod_flag[] = {
 };
 
 static uint32_t hotkey_lrmod_flag[] = {
-	Hotkey_Flag_Alt, Hotkey_Flag_LAlt, Hotkey_Flag_RAlt, Hotkey_Flag_Shift,	  Hotkey_Flag_LShift,	Hotkey_Flag_RShift,
-	Hotkey_Flag_Cmd, Hotkey_Flag_LCmd, Hotkey_Flag_RCmd, Hotkey_Flag_Control, Hotkey_Flag_LControl, Hotkey_Flag_RControl,
+	Hotkey_Flag_Alt,	Hotkey_Flag_LAlt,	 Hotkey_Flag_RAlt,	   Hotkey_Flag_Shift,
+	Hotkey_Flag_LShift, Hotkey_Flag_RShift,	 Hotkey_Flag_Cmd,	   Hotkey_Flag_LCmd,
+	Hotkey_Flag_RCmd,	Hotkey_Flag_Control, Hotkey_Flag_LControl, Hotkey_Flag_RControl,
 };
 
 static bool compare_lr_mod(struct keyevent *a, struct keyevent *b, int mod) {
 	bool result =
 		has_flags(a, hotkey_lrmod_flag[mod])
-			? has_flags(b, hotkey_lrmod_flag[mod + LMOD_OFFS]) || has_flags(b, hotkey_lrmod_flag[mod + RMOD_OFFS]) || has_flags(b, hotkey_lrmod_flag[mod])
+			? has_flags(b, hotkey_lrmod_flag[mod + LMOD_OFFS]) || has_flags(b, hotkey_lrmod_flag[mod + RMOD_OFFS]) ||
+				  has_flags(b, hotkey_lrmod_flag[mod])
 			: has_flags(a, hotkey_lrmod_flag[mod + LMOD_OFFS]) == has_flags(b, hotkey_lrmod_flag[mod + LMOD_OFFS]) &&
-				  has_flags(a, hotkey_lrmod_flag[mod + RMOD_OFFS]) == has_flags(b, hotkey_lrmod_flag[mod + RMOD_OFFS]) &&
+				  has_flags(a, hotkey_lrmod_flag[mod + RMOD_OFFS]) ==
+					  has_flags(b, hotkey_lrmod_flag[mod + RMOD_OFFS]) &&
 				  has_flags(a, hotkey_lrmod_flag[mod]) == has_flags(b, hotkey_lrmod_flag[mod]);
 	return result;
 }
 
-static bool compare_fn(struct keyevent *a, struct keyevent *b) { return has_flags(a, Hotkey_Flag_Fn) == has_flags(b, Hotkey_Flag_Fn); }
+static bool compare_fn(struct keyevent *a, struct keyevent *b) {
+	return has_flags(a, Hotkey_Flag_Fn) == has_flags(b, Hotkey_Flag_Fn);
+}
 
-static bool compare_nx(struct keyevent *a, struct keyevent *b) { return has_flags(a, Hotkey_Flag_NX) == has_flags(b, Hotkey_Flag_NX); }
+static bool compare_nx(struct keyevent *a, struct keyevent *b) {
+	return has_flags(a, Hotkey_Flag_NX) == has_flags(b, Hotkey_Flag_NX);
+}
 
 bool compare_keyevent(struct keyevent *a, struct keyevent *b) {
-	return compare_lr_mod(a, b, LRMOD_ALT) && compare_lr_mod(a, b, LRMOD_CMD) && compare_lr_mod(a, b, LRMOD_CTRL) && compare_lr_mod(a, b, LRMOD_SHIFT) &&
-		   compare_fn(a, b) && compare_nx(a, b) && a->key == b->key;
+	return compare_lr_mod(a, b, LRMOD_ALT) && compare_lr_mod(a, b, LRMOD_CMD) && compare_lr_mod(a, b, LRMOD_CTRL) &&
+		   compare_lr_mod(a, b, LRMOD_SHIFT) && compare_fn(a, b) && compare_nx(a, b) && a->key == b->key;
 }
 
 unsigned long hash_keyevent(struct keyevent *a) { return a->key; }
@@ -138,14 +145,17 @@ bool execute_action(struct mkhd_state *mstate, struct action *action) {
 				//
 				// this can overflow the layer stack if the user spams the layer switch hotkey.
 				//
-				// this check guards against that by not allowing the same layer to be activated for more than once consecutively
+				// this check guards against that by not allowing the same layer to be activated for more than once
+				// consecutively
 				return true;
 			}
 			mstate->layerstack_cnt++;
 			if (mstate->layerstack_cnt > LAYERSTACK_MAX) {
-				warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n", LAYERSTACK_MAX);
-				warn("mkhd: last 5 layers: ... -> |%s -> |%s -> |%s -> |%s -> |%s", mstate->layerstack[LAYERSTACK_MAX - 5]->name,
-					 mstate->layerstack[LAYERSTACK_MAX - 4]->name, mstate->layerstack[LAYERSTACK_MAX - 3]->name, mstate->layerstack[LAYERSTACK_MAX - 2]->name,
+				warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n",
+					 LAYERSTACK_MAX);
+				warn("mkhd: last 5 layers: ... -> |%s -> |%s -> |%s -> |%s -> |%s",
+					 mstate->layerstack[LAYERSTACK_MAX - 5]->name, mstate->layerstack[LAYERSTACK_MAX - 4]->name,
+					 mstate->layerstack[LAYERSTACK_MAX - 3]->name, mstate->layerstack[LAYERSTACK_MAX - 2]->name,
 					 mstate->layerstack[LAYERSTACK_MAX - 1]->name);
 				return false; // no capture
 			}
