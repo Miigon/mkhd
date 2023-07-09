@@ -1,18 +1,21 @@
 #pragma once
 #include "hashtable.h"
 
-#define MODESTACK_MAX 256
+#define LAYERSTACK_MAX 5
 
-struct mode;
+struct layer;
 struct mkhd_state {
-	struct table mode_map;
+	struct table layer_map;
 	struct table blacklst;
 	struct table alias_map;
 
-	struct mode *modestack[MODESTACK_MAX];
-	int modestack_cnt;
+	// keeps track of the history of `|>` layer switches.
+	// persists between key presses.
+	// only affected by PushLayer and PopLayer actions.
+	struct layer *layerstack[LAYERSTACK_MAX];
+	int layerstack_cnt;
 };
 
-#define MS_CURRENT_MODE(mstate) ((mstate)->modestack[(mstate)->modestack_cnt - 1])
+#define MS_CURRENT_LAYER(mstate) ((mstate)->layerstack[(mstate)->layerstack_cnt - 1])
 
-#define DEFAULT_MODE "default"
+#define DEFAULT_LAYER "default"

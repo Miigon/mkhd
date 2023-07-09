@@ -190,13 +190,7 @@ struct token get_token(struct tokenizer *tokenizer) {
 		do_special_identifier(tokenizer, &token, Token_Event);
 	} break;
 	case '|': {
-		if (*tokenizer->at == '>') {
-			advance(tokenizer);
-			token.length = tokenizer->at - token.text;
-			token.type = Token_ModeArrow;
-		} else {
-			do_special_identifier(tokenizer, &token, Token_Mode);
-		}
+		do_special_identifier(tokenizer, &token, Token_Layer);
 	} break;
 	default: {
 		if (c == '0' && *tokenizer->at == 'x') {

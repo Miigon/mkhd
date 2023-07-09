@@ -55,14 +55,18 @@ enum hotkey_flag {
 struct carbon_event;
 
 enum action_type {
-	Action_NoOp = 0,
-	Action_Command,
-	Action_ModeSwitch,
-	Action_PopMode, // pop back to the mode before entering this mode
+	Action_NoOp = 0,  // do nothing but capture the key event
+	Action_Command,	  // run a command (capture the key event)
+	Action_Nocapture, // do nothing and keep the original OS behaviour of the key event
 
-	Action_PassMode,	  // pass keyevent to another mode
-	Action_Fallthrough,	  // pass to the next lower mode in the mode stack
-	Action_PassNocapture, // pass to outside mkhd (no capture, work as regular key press)
+	// layer stack manipulation actions
+	Action_PushLayer, // activate a new layer (add it to the layer stack)
+	Action_PopLayer,  // pop the top layer from the layer stack
+
+	Action_Fallthrough, // delegate the event to the next lower layer in the layer stack
+						// (default behaviour of unmatched keys in any layers.)
+						// once an event falls through the lowest layer, it behaves like a
+						// Nocapture and registers as a regular key press.
 };
 
 struct action {
@@ -71,7 +75,7 @@ struct action {
 };
 
 struct keyevent {
-	// todo: implement special event (@enter_mode, @exit_mode, @unmatched, etc)
+	// todo: implement special event (@enter_layer, @exit_layer, @unmatched, @keyup, @keydown, etc)
 	uint32_t flags;
 	uint32_t key;
 };
@@ -85,15 +89,16 @@ struct hotkey {
 	struct action *process_default_action;
 };
 
-struct mode {
+struct layer {
 	const char *name;
 	struct table hotkey_map; // <keyevent, hotkey>
 
-	// actions triggered for special events (@unmatched, @enter_mode, etc).
+	// actions triggered for special events (@unmatched, @enter_layer, etc).
 	// no need to null-check these. they are guaranteed to be initialized. (most of them are NoOp)
-	struct action *on_unmatched; // what to do when a key matches no hotkey in this mode (default: Fallthrough)
-	struct action *on_enter_mode;
-	struct action *on_exit_mode;
+	// todo: make these "pseudo hotkeys" in the layer.
+	struct action *on_unmatched; // what to do when a key matches no hotkey in this layer (default: Fallthrough)
+	struct action *on_enter_layer;
+	struct action *on_exit_layer;
 };
 
 static inline void add_flags(struct keyevent *event, uint32_t flag) { event->flags |= flag; }
@@ -112,9 +117,9 @@ bool intercept_systemkey(CGEventRef event, struct keyevent *eventkey);
 // returns whether to capture the event or not
 bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name);
 
-struct mode *create_new_mode(const char *name_moved);
+struct layer *create_new_layer(const char *name_moved);
 
-void free_mode_map(struct table *mode_map);
+void free_layer_map(struct table *layer_map);
 void free_blacklist(struct table *blacklst);
 void free_alias_map(struct table *alias_map);
 

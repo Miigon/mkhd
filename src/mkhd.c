@@ -69,7 +69,7 @@ static HOTLOADER_CALLBACK(config_handler);
 
 static void parse_config_helper(char *absolutepath) {
 	struct parser parser;
-	if (parser_init(&parser, &g_mstate.mode_map, &g_mstate.blacklst, &g_mstate.alias_map, absolutepath)) {
+	if (parser_init(&parser, &g_mstate.layer_map, &g_mstate.blacklst, &g_mstate.alias_map, absolutepath)) {
 		if (!thwart_hotloader) {
 			hotloader_end(&hotloader);
 			hotloader_add_file(&hotloader, absolutepath);
@@ -97,7 +97,7 @@ static void parse_config_helper(char *absolutepath) {
 static void free_tables() {
 	// temporarily no-op
 
-	// free_mode_map(&g_mstate.mode_map);
+	// free_layer_map(&g_mstate.layer_map);
 	// free_blacklist(&g_mstate.blacklst);
 	// free_alias_map(&g_mstate.alias_map);
 }
@@ -402,12 +402,15 @@ static void dump_secure_keyboard_entry_process_info(void) {
 }
 
 void init_mstate(struct mkhd_state *mstate) {
-	table_init(&g_mstate.mode_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate.layer_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
 	table_init(&g_mstate.blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
 	table_init(&g_mstate.alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
 
-	g_mstate.modestack[0] = create_new_mode(DEFAULT_MODE);
-	g_mstate.modestack_cnt = 1;
+	// initialize default layer.
+	struct layer *default_layer = create_new_layer(DEFAULT_LAYER);
+	mstate->layerstack[0] = default_layer;
+	mstate->layerstack_cnt = 1;
+	table_add(&mstate->layer_map, DEFAULT_LAYER, default_layer);
 }
 
 int main(int argc, char **argv) {

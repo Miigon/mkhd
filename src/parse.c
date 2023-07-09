@@ -20,18 +20,18 @@
 	char(var)[(token).length + 1];                                                                                                                             \
 	copy_string_count_nomalloc((var), (token).text, (token).length);
 
-static struct mode *find_mode_or_create(struct parser *parser, const char *name) {
-	struct mode *mode = table_find(parser->mode_map, name);
+static struct layer *find_layer_or_create(struct parser *parser, const char *name) {
+	struct layer *layer = table_find(parser->layer_map, name);
 
-	if (mode != NULL) {
-		return mode;
+	if (layer != NULL) {
+		return layer;
 	}
 
-	// mode not found, implicitly create them.
-	mode = create_new_mode(name);
-	table_add(parser->mode_map, mode->name, mode);
+	// layer not found, implicitly create them.
+	layer = create_new_layer(name);
+	table_add(parser->layer_map, layer->name, layer);
 
-	return mode;
+	return layer;
 }
 
 static char *read_file(const char *file) {
@@ -52,65 +52,14 @@ static char *read_file(const char *file) {
 	return buffer;
 }
 
-static bool parser_match_action(struct parser *parser) {
-	return parser_match(parser, Token_ModeArrow) || parser_match(parser, Token_Command) || parser_match(parser, Token_Arrow) ||
-		   parser_match(parser, Token_Option);
-}
+static bool parser_match_action(struct parser *parser) { return parser_match(parser, Token_Command) || parser_match(parser, Token_Option); }
 
-static struct action *parse_action(struct parser *parser, struct hotkey *hotkey) {
+static struct action *parse_action(struct parser *parser) {
 	struct token token = parser_previous(parser);
 	struct action *action = malloc(sizeof(struct action));
-	debug("\taction: ");
+	action->type = Action_NoOp;
 
-	if (token.type == Token_ModeArrow || token.type == Token_Arrow) {
-		if (parser_match(parser, Token_Mode)) {
-			struct token mode_token = parser_previous(parser);
-			if (mode_token.length == 0 && parser_match(parser, Token_Option)) {
-				// special modes (.fallthrough, .nocapture, etc)
-				struct token mode_token = parser_previous(parser);
-				DEFVAR_FROM_TOKEN_TEXT(smode, mode_token);
-				if (token.type == Token_ModeArrow) {
-					if (strcmp(smode, "fallthrough") == 0) {
-						// pops current mode from the mode stack
-						action->type = Action_PopMode;
-						debug("[modeswitch]!default\n");
-					} else {
-						parser_report_error(parser, mode_token, "could not switch to mode |.%s (use `->` to pass instead?)\n", smode);
-					}
-				} else if (token.type == Token_Arrow) {
-					if (strcmp(smode, "fallthrough") == 0) {
-						// passthrough to the mode below in the mode stack
-						action->type = Action_Fallthrough;
-						debug("[pass]|.fallthrough\n");
-					} else if (strcmp(smode, "capture") == 0) {
-						// capture the key press and do nothing
-						action->type = Action_NoOp; // default behaviour is capture already, so do nothing
-						debug("[capture]\n");
-					} else if (strcmp(smode, "nocapture") == 0) {
-						// do nothing and do not capture the key press
-						// let system do it's thing with it like normal
-						action->type = Action_PassNocapture;
-						debug("[nocapture]\n");
-					} else {
-						parser_report_error(parser, mode_token, "could not pass to mode |.%s\n", smode);
-					}
-				}
-			} else {
-				// normal modes
-				action->argument = copy_string_count_malloc(mode_token.text, mode_token.length);
-				if (token.type == Token_ModeArrow) {
-					action->type = Action_ModeSwitch;
-					debug("[modeswitch]|%s\n", action->argument);
-				} else if (token.type == Token_Arrow) {
-					action->type = Action_PassMode;
-					debug("[pass]|%s\n", action->argument);
-				}
-			}
-		} else {
-			parser_report_error(parser, token, "expected mode\n");
-			return action;
-		}
-	}
+	debug("\taction: ");
 
 	if (token.type == Token_Command) {
 		action->type = Action_Command;
@@ -118,11 +67,39 @@ static struct action *parse_action(struct parser *parser, struct hotkey *hotkey)
 		debug("[cmd]: '%s'\n", action->argument);
 	} else if (token.type == Token_Option) {
 		DEFVAR_FROM_TOKEN_TEXT(option, token);
-		if ((false) && strcmp(option, "") == 0) {
-			// currently none supported.
-			// however, in the future, options might be added as special actions.
+		if (strcmp(option, "activate") == 0) {
+			// activate a new layer
+			if (parser_match(parser, Token_Layer)) {
+				struct token layer_token = parser_previous(parser);
+				if (layer_token.length == 0) {
+					parser_report_error(parser, layer_token, "layer name can not be empty\n");
+					return action;
+				}
+				action->type = Action_PushLayer;
+				action->argument = copy_string_count_malloc(layer_token.text, layer_token.length);
+				debug("[activate]|%s\n", action->argument);
+			} else {
+				parser_report_error(parser, parser_peek(parser), "expected layer\n");
+			}
+		} else if (strcmp(option, "deactivate") == 0) {
+			// pops current layer from the layer stack
+			action->type = Action_PopLayer;
+			debug("[layerswitch]!default\n");
+		} else if (strcmp(option, "fallthrough") == 0) {
+			// passthrough to the layer below in the layer stack
+			action->type = Action_Fallthrough;
+			debug("[pass]|.fallthrough\n");
+		} else if (strcmp(option, "nop") == 0) {
+			// capture the key press and do nothing
+			action->type = Action_NoOp; // default behaviour is capture already, so do nothing
+			debug("[nop]\n");
+		} else if (strcmp(option, "nocapture") == 0) {
+			// do nothing and do not capture the key press
+			// let system do it's thing with it like normal
+			action->type = Action_Nocapture;
+			debug("[nocapture]\n");
 		} else {
-			parser_report_error(parser, token, "invalid option as action: $%s\n", option);
+			parser_report_error(parser, token, "invalid option as action: .%s\n", option);
 		}
 	}
 	return action;
@@ -138,14 +115,14 @@ static void parse_process_action_mappings(struct parser *parser, struct hotkey *
 				*s = tolower(*s);
 			buf_push(hotkey->process_names, name);
 			if (parser_match_action(parser)) {
-				buf_push(hotkey->actions, parse_action(parser, hotkey));
+				buf_push(hotkey->actions, parse_action(parser));
 			} else {
 				parser_report_error(parser, parser_peek(parser), "expected action\n");
 				return;
 			}
 		} else if (parser_match(parser, Token_Wildcard)) {
 			if (parser_match_action(parser)) {
-				hotkey->process_default_action = parse_action(parser, hotkey);
+				hotkey->process_default_action = parse_action(parser);
 			} else {
 				parser_report_error(parser, parser_peek(parser), "expected action\n");
 				return;
@@ -268,8 +245,8 @@ static enum hotkey_flag modifier_flags_value[] = {
 
 static void expand_alias(struct parser *parser, struct keyevent *dst, struct token alias, bool *contains_mod) {
 	if (parser->alias_map == NULL) {
-		// parser is in text mode (eg. `synthesize_key()`)
-		parser_report_error(parser, alias, "aliases not supported in this mode\n");
+		// parser is in text layer (eg. `synthesize_key()`)
+		parser_report_error(parser, alias, "aliases not supported in this layer\n");
 		return;
 	}
 	DEFVAR_FROM_TOKEN_TEXT(alias_name, alias);
@@ -331,31 +308,36 @@ static bool parse_modifier(struct parser *parser, struct keyevent *keyevent) {
 	return true;
 }
 
-static void parse_modes_and_add_hotkey_to_them(struct parser *parser, struct hotkey *hotkey) {
-	bool first_iter = true;
+static int parse_layers(struct parser *parser, struct hotkey *hotkey, struct layer **layer_list, int max_layers) {
+	int idx = 0;
+	if (!parser_check(parser, Token_Layer)) {
+		// no layer specified, go with default layer.
+
+		struct layer *layer = find_layer_or_create(parser, DEFAULT_LAYER);
+		table_add(&layer->hotkey_map, &hotkey->event, hotkey);
+		debug("\tlayer: '%s'\n", layer->name);
+		layer_list[0] = layer;
+		return 1;
+	}
+	// layer(s) specified.
 	do {
-		if (!parser_match(parser, Token_Mode)) {
-			if (!first_iter) {
-				parser_report_error(parser, parser_peek(parser), "mode expected\n");
-			} else {
-				// no mode specified, go with default mode.
-				table_add(&find_mode_or_create(parser, DEFAULT_MODE)->hotkey_map, &hotkey->event, hotkey);
-			}
-			return;
+		if (!parser_match(parser, Token_Layer)) {
+			parser_report_error(parser, parser_peek(parser), "layer expected\n");
+			return -1;
 		}
-		// mode specified.
 		struct token token = parser_previous(parser);
+		if (idx >= max_layers) {
+			parser_report_error(parser, token, "too many layer specifiers for one single rule (max %d)\n", max_layers);
+			return -1;
+		}
 
 		DEFVAR_FROM_TOKEN_TEXT(name, token);
-		struct mode *mode = find_mode_or_create(parser, name);
+		struct layer *layer = find_layer_or_create(parser, name);
 
-		// todo: won't this bug out with mappings like `rctrl - c` and `ctrl - c`?
-		// see compare_keyevent()
-		table_add(&mode->hotkey_map, &hotkey->event, hotkey);
-		debug("\tmode: '%s'\n", mode->name);
-
-		first_iter = false;
+		debug("\tlayer: '%s'\n", layer->name);
+		layer_list[idx++] = layer;
 	} while (parser_match(parser, Token_Comma));
+	return idx;
 }
 
 static void parse_hotkey(struct parser *parser) {
@@ -364,25 +346,34 @@ static void parse_hotkey(struct parser *parser) {
 
 	debug("hotkey :: #%d {\n", parser->current_token.line);
 
-	parse_modes_and_add_hotkey_to_them(parser, hotkey);
+	struct layer *layer_list[256];
+	int layer_cnt = parse_layers(parser, hotkey, layer_list, array_count(layer_list));
+	if (parser->error)
+		return;
 
 	parse_keyevent(parser, &hotkey->event, false);
+	if (parser->error)
+		return;
 
 	if (parser_match_action(parser)) {
-		parse_action(parser, hotkey);
+		hotkey->process_default_action = parse_action(parser);
 	} else if (parser_match(parser, Token_BeginList)) {
 		parse_process_action_mappings(parser, hotkey);
 	} else {
 		parser_report_error(parser, parser_peek(parser), "expected action\n");
 	}
-	if (parser->error) {
-		goto err;
+	if (parser->error)
+		return;
+
+	// add hotkey to its layer(s)
+	// must do it after `parse_keyevent()`
+	for (int i = 0; i < layer_cnt; i++) {
+		struct layer *layer = layer_list[i];
+		table_add(&layer->hotkey_map, &hotkey->event, hotkey);
+		debug("\tlayer: '%s'\n", layer->name);
 	}
 
 	debug("}\n");
-
-err:
-	free(hotkey);
 }
 
 void parse_option_blacklist(struct parser *parser) {
@@ -476,7 +467,7 @@ bool parse_config(struct parser *parser) {
 			break;
 
 		if (parser_check(parser, Token_Identifier) || parser_check(parser, Token_Modifier) || parser_check(parser, Token_Literal) ||
-			parser_check(parser, Token_Key_Hex) || parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Mode)) {
+			parser_check(parser, Token_Key_Hex) || parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Layer)) {
 			parse_hotkey(parser);
 		} else if (parser_check(parser, Token_Option)) {
 			parse_option(parser);
@@ -486,7 +477,7 @@ bool parse_config(struct parser *parser) {
 	}
 
 	if (parser->error) {
-		free_mode_map(parser->mode_map);
+		free_layer_map(parser->layer_map);
 		free_blacklist(parser->blacklst);
 		return false;
 	}
@@ -590,7 +581,7 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 		struct load_directive load = parser->load_directives[i];
 
 		struct parser directive_parser;
-		if (parser_init(&directive_parser, parser->mode_map, parser->blacklst, parser->alias_map, load.file)) {
+		if (parser_init(&directive_parser, parser->layer_map, parser->blacklst, parser->alias_map, load.file)) {
 			if (!thwart_hotloader) {
 				hotloader_add_file(hotloader, load.file);
 			}
@@ -611,17 +602,17 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 	buf_free(parser->load_directives);
 
 	if (error) {
-		free_mode_map(parser->mode_map);
+		free_layer_map(parser->layer_map);
 		free_blacklist(parser->blacklst);
 	}
 }
 
-bool parser_init(struct parser *parser, struct table *mode_map, struct table *blacklst, struct table *alias_map, char *file) {
+bool parser_init(struct parser *parser, struct table *layer_map, struct table *blacklst, struct table *alias_map, char *file) {
 	memset(parser, 0, sizeof(struct parser));
 	char *buffer = read_file(file);
 	if (buffer) {
 		parser->file = file;
-		parser->mode_map = mode_map;
+		parser->layer_map = layer_map;
 		parser->blacklst = blacklst;
 		parser->alias_map = alias_map;
 		tokenizer_init(&parser->tokenizer, buffer);

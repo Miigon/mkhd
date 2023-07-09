@@ -55,25 +55,24 @@ static const char *literal_keycode_str[] = {"return",
 
 enum token_type {
 	Token_Identifier,
-	Token_Command,
+	Token_Command, // : command
 	Token_Modifier,
 	Token_Literal,
 	Token_Key_Hex,
 	Token_Key,
-	Token_Mode, // "!mode_name"
+	Token_Layer, // "!layer_name"
 
-	Token_Comma,
-	Token_Insert,
-	Token_Plus,
-	Token_Dash,
-	Token_ModeArrow, // |>
-	Token_Arrow,	 // ->
-	Token_Wildcard,	 // *
-	Token_String,
-	Token_Option,
+	Token_Comma,	// ,
+	Token_Insert,	// <
+	Token_Plus,		// +
+	Token_Dash,		// -
+	Token_Arrow,	// ->
+	Token_Wildcard, // *
+	Token_String,	// "string"
+	Token_Option,	// .option
 
-	Token_BeginList,
-	Token_EndList,
+	Token_BeginList, // [
+	Token_EndList,	 // ]
 
 	Token_Alias,
 	Token_Event,

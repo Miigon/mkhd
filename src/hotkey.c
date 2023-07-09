@@ -5,10 +5,6 @@
 #include "sbuffer.h"
 #include "utils.h"
 
-#define HOTKEY_FOUND ((1) << 0)
-#define MODE_CAPTURE(a) ((a) << 1)
-#define HOTKEY_PASSTHROUGH(a) ((a) << 2)
-
 #define LRMOD_ALT 0
 #define LRMOD_CMD 6
 #define LRMOD_CTRL 9
@@ -85,11 +81,13 @@ static inline struct action *find_process_action(struct hotkey *hotkey, const ch
 	struct action *result = NULL;
 	bool found = false;
 
-	for (int i = 0; i < buf_len(hotkey->process_names); ++i) {
-		if (same_string(process_name, hotkey->process_names[i])) {
-			result = hotkey->actions[i];
-			found = true;
-			break;
+	if (hotkey->process_names) { // process-specific mappings
+		for (int i = 0; i < buf_len(hotkey->process_names); ++i) {
+			if (same_string(process_name, hotkey->process_names[i])) {
+				result = hotkey->actions[i];
+				found = true;
+				break;
+			}
 		}
 	}
 
@@ -99,74 +97,118 @@ static inline struct action *find_process_action(struct hotkey *hotkey, const ch
 	return result;
 }
 
-bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name) {
-	struct mode *in_mode = MS_CURRENT_MODE(mstate);
+bool execute_action(struct mkhd_state *mstate, struct action *action) {
+	int fallthrough_depth = mstate->layerstack_cnt - 1;
+
+#define cur_layer() (mstate->layerstack[fallthrough_depth])
 
 	// do action
 	while (true) {
-		struct hotkey *hotkey = table_find(&in_mode->hotkey_map, event);
-		struct action *action = find_process_action(hotkey, process_name);
 		switch (action->type) {
 		// === non-terminating actions ===
-		case Action_PassMode:
-			MS_CURRENT_MODE(mstate) = table_find(&mstate->mode_map, action->argument);
-			continue;
 		case Action_Fallthrough: {
-			if (mstate->modestack_cnt == 1) {
-				// special case: `-> |.fallthrough` at the lowest mode frame is the same as `-> |.nocapture`
+			if (fallthrough_depth == 0) {
+				// special case: `.fallthrough` at the lowest layer frame is the same as `.nocapture`
 				return false;
 			}
-			mstate->modestack_cnt--;
-			in_mode = mstate->modestack[mstate->modestack_cnt - 1];
+			struct layer *oldlayer = cur_layer();
+			fallthrough_depth--;
+			debug("mkhd: .fallthrough |%s -> |%s\n", oldlayer->name, cur_layer()->name);
+			continue;
 		}
 		// === terminating actions ===
 		case Action_NoOp:
+			debug("mkhd: captured\n");
 			return true; // capture
 		case Action_Command:
 			fork_and_exec(action->argument);
+			debug("mkhd: cmd: %s\n", action->argument);
 			return true; // capture
-		case Action_ModeSwitch: {
-			struct mode *new_mode = table_find(&mstate->mode_map, action->argument);
-			mstate->modestack[mstate->modestack_cnt++] = new_mode;
-
-			if (mstate->modestack_cnt >= MODESTACK_MAX) {
-				warn("mode stack overflow! (max %d) maybe you have a passing (->) loop in your config?\n", MODESTACK_MAX - 1);
-				warn("last 5 mode stack frame: ... -> |%s -> |%s -> |%s -> |%s -> |%s", mstate->modestack[MODESTACK_MAX - 5]->name,
-					 mstate->modestack[MODESTACK_MAX - 4]->name, mstate->modestack[MODESTACK_MAX - 3]->name, mstate->modestack[MODESTACK_MAX - 2]->name,
-					 mstate->modestack[MODESTACK_MAX - 1]->name);
+		case Action_Nocapture:
+			return false; // no capture
+		case Action_PushLayer: {
+			if (strcmp(MS_CURRENT_LAYER(mstate)->name, action->argument) == 0) {
+				// by default a unbind key in a layer will .fallthrough
+				// this means if you have a rule to enter layer |foo like this:
+				//
+				// 		|foo ctrl-a -> |bar
+				//
+				// pressing `ctrl-a` multiple times will trigger multiple PushLayer(|bar) actions
+				// due to the key press falling through and triggering the |foo layer rule even in |bar layer.
+				//
+				// this can overflow the layer stack if the user spams the layer switch hotkey.
+				//
+				// this check guards against that by not allowing the same layer to be activated for more than once consecutively
+				return true;
+			}
+			mstate->layerstack_cnt++;
+			if (mstate->layerstack_cnt > LAYERSTACK_MAX) {
+				warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n", LAYERSTACK_MAX);
+				warn("mkhd: last 5 layers: ... -> |%s -> |%s -> |%s -> |%s -> |%s", mstate->layerstack[LAYERSTACK_MAX - 5]->name,
+					 mstate->layerstack[LAYERSTACK_MAX - 4]->name, mstate->layerstack[LAYERSTACK_MAX - 3]->name, mstate->layerstack[LAYERSTACK_MAX - 2]->name,
+					 mstate->layerstack[LAYERSTACK_MAX - 1]->name);
 				return false; // no capture
 			}
+			struct layer *new_layer = table_find(&mstate->layer_map, action->argument);
+			MS_CURRENT_LAYER(mstate) = new_layer;
+			debug("mkhd: layerswitch |> |%s\n", new_layer->name);
+
 			return true; // capture
 		}
-		case Action_PopMode: {
-			mstate->modestack_cnt--;
+		case Action_PopLayer:
+			if (mstate->layerstack_cnt == 1) {
+				warn("mkhd: can not deactivate default layer. nothing was done.");
+				return true;
+			}
+			mstate->layerstack_cnt--;
+			debug("mkhd: poplayer, back to |%s\n", MS_CURRENT_LAYER(mstate)->name);
 			return true; // capture
-		case Action_PassNocapture:
-			return false; // no capture
-		}
+		default:
+			warn("mkhd: unknown action %d\n", action->type);
+			return false;
 		}
 		// unreachable
+		// do `continue` or `return` in the cases instead.
+		error("here should be unreachable. file a bug report!\n");
 	}
 }
 
-struct mode *create_new_mode(const char *name) {
-	struct mode *mode = malloc(sizeof(struct mode));
-	memset(mode, 0, sizeof(struct mode));
-	mode->name = copy_string_malloc(name);
+bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name) {
+	int fallthrough_depth = mstate->layerstack_cnt - 1;
 
-	table_init(&mode->hotkey_map, 131, (table_hash_func)hash_keyevent, (table_compare_func)compare_keyevent);
+#define cur_layer() (mstate->layerstack[fallthrough_depth])
+
+	debug("mkhd: event: %d\n", event->key);
+
+	struct hotkey *hotkey = table_find(&cur_layer()->hotkey_map, event);
+	struct action *action = NULL;
+	if (hotkey == NULL) {
+		// unmatched, trigger on_unmatched event
+		action = cur_layer()->on_unmatched;
+	} else {
+		action = find_process_action(hotkey, process_name);
+	}
+	return execute_action(mstate, action);
+}
+
+struct layer *create_new_layer(const char *name) {
+	struct layer *layer = malloc(sizeof(struct layer));
+	memset(layer, 0, sizeof(struct layer));
+	layer->name = copy_string_malloc(name);
+
+	table_init(&layer->hotkey_map, 131, (table_hash_func)hash_keyevent, (table_compare_func)compare_keyevent);
 
 	static struct action fallthrough = {.type = Action_Fallthrough, .argument = NULL};
 	static struct action noop = {.type = Action_NoOp, .argument = NULL};
 
-	mode->on_unmatched = &fallthrough;
-	mode->on_enter_mode = &noop;
-	mode->on_exit_mode = &noop;
+	layer->on_unmatched = &fallthrough;
+	layer->on_enter_layer = &noop;
+	layer->on_exit_layer = &noop;
 
-	return mode;
+	return layer;
 }
 
-void free_mode_map(struct table *mode_map) {
+void free_layer_map(struct table *layer_map) {
 	// temporarily no-op
 	// todo: implement tracked malloc
 }
