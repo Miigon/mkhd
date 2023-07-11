@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "tr_malloc.h"
+
 bool same_string(const char *a, const char *b) {
 	bool result = a && b && strcmp(a, b) == 0;
 	return result;
@@ -10,7 +12,7 @@ bool same_string(const char *a, const char *b) {
 
 char *copy_string_malloc(const char *s) {
 	unsigned length = strlen(s);
-	char *result = (char *)malloc(length + 1);
+	char *result = (char *)tr_malloc(length + 1);
 
 	copy_string_count_nomalloc(result, s, length);
 
@@ -24,7 +26,7 @@ char *copy_string_count_nomalloc(char *dst, const char *s, int length) {
 }
 
 char *copy_string_count_malloc(const char *s, int length) {
-	char *result = malloc(length + 1);
+	char *result = tr_malloc(length + 1);
 	return copy_string_count_nomalloc(result, s, length);
 }
 

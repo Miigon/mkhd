@@ -119,8 +119,4 @@ bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, c
 
 struct layer *create_new_layer(const char *name_moved);
 
-void free_layer_map(struct table *layer_map);
-void free_blacklist(struct table *blacklst);
-void free_alias_map(struct table *alias_map);
-
 void init_shell(void);

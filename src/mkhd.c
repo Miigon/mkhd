@@ -31,6 +31,8 @@
 #include "timing.h"
 #include "tokenize.h"
 
+#include "tr_malloc.h"
+
 extern void NSApplicationLoad(void);
 extern CFDictionaryRef CGSCopyCurrentSessionDictionary(void);
 extern bool CGSIsSecureEventInputSet(void);
@@ -56,10 +58,16 @@ extern CGError CGSRegisterNotifyProc(void *handler, uint32_t type, void *context
 #define MINOR 3
 #define PATCH 9
 
+// semi-automatic memory management
+// pointers allocated within each context can be freed all at once
+// whenever appropriate. (see trmalloc.h for more)
+static struct trctx *memctx_global;
+static struct trctx *memctx_mstate;
+static struct trctx *memctx_event;
+
 static struct carbon_event carbon;
 static struct event_tap event_tap;
 static struct hotloader hotloader;
-static struct mkhd_state g_mstate;
 static bool thwart_hotloader;
 static char config_file[4096];
 
@@ -67,15 +75,36 @@ bool verbose;
 
 static HOTLOADER_CALLBACK(config_handler);
 
-static void parse_config_helper(char *absolutepath) {
+static struct mkhd_state *g_mstate = NULL;
+
+static void init_mstate(struct mkhd_state *mstate) {
+	table_init(&g_mstate->layer_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate->blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate->alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+
+	// initialize default layer.
+	struct layer *default_layer = create_new_layer(DEFAULT_LAYER);
+	mstate->layerstack[0] = default_layer;
+	mstate->layerstack_cnt = 1;
+	table_add(&mstate->layer_map, DEFAULT_LAYER, default_layer);
+}
+
+static void load_config(char *absolutepath) {
+	trctx_set_memcontext(memctx_mstate);
+	// everything within `g_mstate` will be tracked by tr_malloc within memctx_mstate (including the g_state object
+	// itseft).
+	g_mstate = tr_malloc(sizeof(struct mkhd_state));
+	init_mstate(g_mstate);
+
 	struct parser parser;
-	if (parser_init(&parser, &g_mstate.layer_map, &g_mstate.blacklst, &g_mstate.alias_map, absolutepath)) {
+	if (parser_init(&parser, &g_mstate->layer_map, &g_mstate->blacklst, &g_mstate->alias_map, absolutepath)) {
 		if (!thwart_hotloader) {
 			hotloader_end(&hotloader);
 			hotloader_add_file(&hotloader, absolutepath);
 		}
 
 		if (parse_config(&parser)) {
+			// todo: eliminate this.
 			parser_do_directives(&parser, &hotloader, thwart_hotloader);
 		}
 		parser_destroy(&parser);
@@ -92,21 +121,22 @@ static void parse_config_helper(char *absolutepath) {
 	} else {
 		warn("mkhd: could not open file '%s'\n", absolutepath);
 	}
+	int objects_survived = trctx_reclaim_empty_slots(memctx_mstate);
+	debug("mkhd: allocated %d objects on config load.\n", objects_survived);
+	trctx_set_memcontext(memctx_global);
 }
 
-static void free_tables() {
-	// temporarily no-op
-
-	// free_layer_map(&g_mstate.layer_map);
-	// free_blacklist(&g_mstate.blacklst);
-	// free_alias_map(&g_mstate.alias_map);
+static void reload_config() {
+	int objects_survived = trctx_free_everything(memctx_mstate);
+	debug("mkhd: (config reload) freed %d objects on old config.\n", objects_survived);
+	load_config(config_file);
 }
 
 static HOTLOADER_CALLBACK(config_handler) {
 	BEGIN_TIMED_BLOCK("hotload_config");
 	debug("mkhd: config-file has been modified.. reloading config\n");
-	free_tables();
-	parse_config_helper(config_file);
+	reload_config();
+
 	END_TIMED_BLOCK();
 }
 
@@ -114,8 +144,7 @@ static CF_NOTIFICATION_CALLBACK(keymap_handler) {
 	BEGIN_TIMED_BLOCK("keymap_changed");
 	if (initialize_keycode_map()) {
 		debug("mkhd: input source changed.. reloading config\n");
-		free_tables();
-		parse_config_helper(config_file);
+		reload_config();
 	}
 	END_TIMED_BLOCK();
 }
@@ -149,7 +178,7 @@ static EVENT_TAP_CALLBACK(key_observer_handler) {
 	return event;
 }
 
-static EVENT_TAP_CALLBACK(key_handler) {
+static EVENT_TAP_CALLBACK(key_handler_impl) {
 	switch (type) {
 	case kCGEventTapDisabledByTimeout:
 	case kCGEventTapDisabledByUserInput: {
@@ -158,24 +187,24 @@ static EVENT_TAP_CALLBACK(key_handler) {
 		CGEventTapEnable(event_tap->handle, 1);
 	} break;
 	case kCGEventKeyDown: {
-		if (table_find(&g_mstate.blacklst, carbon.process_name))
+		if (table_find(&g_mstate->blacklst, carbon.process_name))
 			return event;
 
 		BEGIN_TIMED_BLOCK("handle_keypress");
 		struct keyevent eventkey = create_keyevent_from_CGEvent(event);
-		bool result = find_and_exec_keyevent(&g_mstate, &eventkey, carbon.process_name);
+		bool result = find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
 		END_TIMED_BLOCK();
 
 		if (result)
 			return NULL;
 	} break;
 	case NX_SYSDEFINED: {
-		if (table_find(&g_mstate.blacklst, carbon.process_name))
+		if (table_find(&g_mstate->blacklst, carbon.process_name))
 			return event;
 
 		struct keyevent eventkey;
 		if (intercept_systemkey(event, &eventkey)) {
-			bool result = find_and_exec_keyevent(&g_mstate, &eventkey, carbon.process_name);
+			bool result = find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
 			if (result)
 				return NULL;
 		}
@@ -184,11 +213,18 @@ static EVENT_TAP_CALLBACK(key_handler) {
 	return event;
 }
 
+static EVENT_TAP_CALLBACK(key_handler) {
+	trctx_set_memcontext(memctx_event);
+	CGEventRef res = key_handler_impl(proxy, type, event, reference);
+	trctx_free_everything(memctx_event);
+	trctx_set_memcontext(memctx_global);
+	return res;
+}
+
 static void sigusr1_handler(int signal) {
 	BEGIN_TIMED_BLOCK("sigusr1");
 	debug("mkhd: SIGUSR1 received.. reloading config\n");
-	free_tables();
-	parse_config_helper(config_file);
+	reload_config();
 	END_TIMED_BLOCK();
 }
 
@@ -407,19 +443,14 @@ static void dump_secure_keyboard_entry_process_info(void) {
 	}
 }
 
-void init_mstate(struct mkhd_state *mstate) {
-	table_init(&g_mstate.layer_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-	table_init(&g_mstate.blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-	table_init(&g_mstate.alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-
-	// initialize default layer.
-	struct layer *default_layer = create_new_layer(DEFAULT_LAYER);
-	mstate->layerstack[0] = default_layer;
-	mstate->layerstack_cnt = 1;
-	table_add(&mstate->layer_map, DEFAULT_LAYER, default_layer);
-}
-
 int main(int argc, char **argv) {
+
+	memctx_global = trctx_new_context();
+	memctx_mstate = trctx_new_context();
+	memctx_event = trctx_new_context();
+
+	trctx_set_memcontext(memctx_global);
+
 	if (getuid() == 0 || geteuid() == 0) {
 		require("mkhd: running as root is not allowed! abort..\n");
 	}
@@ -464,13 +495,12 @@ int main(int argc, char **argv) {
 	signal(SIGUSR1, sigusr1_handler);
 
 	init_shell();
-	init_mstate(&g_mstate);
 
 	END_SCOPED_TIMED_BLOCK();
 
 	BEGIN_SCOPED_TIMED_BLOCK("parse_config");
 	debug("mkhd: using config '%s'\n", config_file);
-	parse_config_helper(config_file);
+	load_config(config_file);
 	END_SCOPED_TIMED_BLOCK();
 
 	BEGIN_SCOPED_TIMED_BLOCK("begin_eventtap");

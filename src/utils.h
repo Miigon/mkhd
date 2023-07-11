@@ -8,4 +8,7 @@ char *copy_string_count_nomalloc(char *dst, const char *s, int length);
 char *copy_string_count_malloc(const char *s, int length);
 char *file_name(char *file);
 
+char *copy_string_tr(const char *s);
+char *copy_string_count_malloc(const char *s, int length);
+
 #define array_count(a) (sizeof((a)) / sizeof(*(a)))

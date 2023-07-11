@@ -1,16 +1,18 @@
 #include "carbon.h"
 
+#include "tr_malloc.h"
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated"
 
 char *copy_cfstring(CFStringRef string) {
 	CFIndex num_bytes = CFStringGetMaximumSizeForEncoding(CFStringGetLength(string), kCFStringEncodingUTF8);
-	char *result = malloc(num_bytes + 1);
+	char *result = tr_malloc(num_bytes + 1);
 
 	// NOTE(koekeishiya): Boolean: typedef -> unsigned char; false = 0, true !=
 	// 0
 	if (!CFStringGetCString(string, result, num_bytes + 1, kCFStringEncodingUTF8)) {
-		free(result);
+		tr_free(result);
 		result = NULL;
 	}
 
@@ -52,7 +54,7 @@ static OSStatus carbon_event_handler(EventHandlerCallRef ref, EventRef event, vo
 	}
 
 	if (carbon->process_name) {
-		free(carbon->process_name);
+		tr_free(carbon->process_name);
 		carbon->process_name = NULL;
 	}
 

@@ -9,7 +9,7 @@
 #include "utils.h"
 
 static struct table keymap_table;
-static char **keymap_keys;
+static char **keymap_keys = NULL;
 
 static int hash_keymap(const char *a) {
 	unsigned long hash = 0, high;
@@ -34,7 +34,7 @@ static bool same_keymap(const char *a, const char *b) {
 
 static void free_keycode_map(void) {
 	for (int i = 0; i < buf_len(keymap_keys); ++i) {
-		free(keymap_keys[i]);
+		tr_free(keymap_keys[i]);
 	}
 
 	buf_free(keymap_keys);
@@ -72,6 +72,7 @@ bool initialize_keycode_map(void) {
 	table_free(&keymap_table);
 	table_init(&keymap_table, 61, (table_hash_func)hash_keymap, (table_compare_func)same_keymap);
 
+	// todo: maybe cache it?
 	for (int i = 0; i < array_count(layout_dependent_keycodes); ++i) {
 		if (UCKeyTranslate(keyboard_layout, layout_dependent_keycodes[i], kUCKeyActionDown, 0, LMGetKbdType(),
 						   kUCKeyTranslateNoDeadKeysMask, &state, array_count(chars), &len, chars) == noErr &&
@@ -87,6 +88,7 @@ bool initialize_keycode_map(void) {
 		}
 	}
 
+	// todo: do nothing if the keycode map did not changed.
 	return true;
 }
 #pragma clang diagnostic pop

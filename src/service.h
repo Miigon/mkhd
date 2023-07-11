@@ -84,12 +84,12 @@ static int safe_exec(char *const argv[], bool suppress_output) {
 
 static inline char *cfstring_copy(CFStringRef string) {
 	CFIndex num_bytes = CFStringGetMaximumSizeForEncoding(CFStringGetLength(string), kCFStringEncodingUTF8);
-	char *result = malloc(num_bytes + 1);
+	char *result = tr_malloc(num_bytes + 1);
 	if (!result)
 		return NULL;
 
 	if (!CFStringGetCString(string, result, num_bytes + 1, kCFStringEncodingUTF8)) {
-		free(result);
+		tr_free(result);
 		result = NULL;
 	}
 
@@ -107,7 +107,7 @@ static char *populate_plist_path(void) {
 	}
 
 	int size = strlen(_PATH_MKHD_PLIST) - 2 + strlen(home) + 1;
-	char *result = malloc(size);
+	char *result = tr_malloc(size);
 	if (!result) {
 		error("mkhd: could not allocate memory for plist path! abort..\n");
 	}
@@ -136,7 +136,7 @@ static char *populate_plist(int *length) {
 	}
 
 	int size = strlen(_MKHD_PLIST) - 8 + strlen(exe_path) + strlen(path_env) + (2 * strlen(user)) + 1;
-	char *result = malloc(size);
+	char *result = tr_malloc(size);
 	if (!result) {
 		error("mkhd: could not allocate memory for plist contents! abort..\n");
 	}

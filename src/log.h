@@ -1,5 +1,9 @@
-#ifndef MKHD_LOG_H
-#define MKHD_LOG_H
+#pragma once
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern bool verbose;
 
@@ -35,5 +39,3 @@ static inline void require(const char *format, ...) {
 	va_end(args);
 	exit(EXIT_SUCCESS);
 }
-
-#endif

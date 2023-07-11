@@ -43,7 +43,7 @@ static char *read_file(const char *file) {
 		fseek(handle, 0, SEEK_END);
 		length = ftell(handle);
 		fseek(handle, 0, SEEK_SET);
-		buffer = malloc(length + 1);
+		buffer = tr_malloc(length + 1);
 		fread(buffer, length, 1, handle);
 		buffer[length] = '\0';
 		fclose(handle);
@@ -58,7 +58,7 @@ static bool parser_match_action(struct parser *parser) {
 
 static struct action *parse_action(struct parser *parser) {
 	struct token token = parser_previous(parser);
-	struct action *action = malloc(sizeof(struct action));
+	struct action *action = tr_malloc(sizeof(struct action));
 	action->type = Action_NoOp;
 
 	debug("\taction: ");
@@ -344,7 +344,7 @@ static int parse_layers(struct parser *parser, struct hotkey *hotkey, struct lay
 }
 
 static void parse_hotkey(struct parser *parser) {
-	struct hotkey *hotkey = malloc(sizeof(struct hotkey));
+	struct hotkey *hotkey = tr_malloc(sizeof(struct hotkey));
 	memset(hotkey, 0, sizeof(struct hotkey));
 
 	debug("hotkey :: #%d {\n", parser->current_token.line);
@@ -409,9 +409,9 @@ void parse_option_load(struct parser *parser, struct token option) {
 		size_t filename_length = strlen(filename);
 		size_t total_length = directory_length + filename_length + 2;
 
-		char *absolutepath = malloc(total_length * sizeof(char));
+		char *absolutepath = tr_malloc(total_length * sizeof(char));
 		snprintf(absolutepath, total_length, "%s/%s", directory, filename);
-		free(filename);
+		tr_free(filename);
 
 		filename = absolutepath;
 	}
@@ -424,7 +424,7 @@ void parse_option_alias(struct parser *parser) {
 	char *alias_name = copy_string_count_malloc(alias_token.text, alias_token.length);
 	debug("\talias_name: $%s\n", alias_name);
 
-	struct keyevent *keyevent = malloc(sizeof(struct hotkey));
+	struct keyevent *keyevent = tr_malloc(sizeof(struct hotkey));
 	memset(keyevent, 0, sizeof(struct hotkey));
 	parse_keyevent(parser, keyevent, true);
 
@@ -480,13 +480,7 @@ bool parse_config(struct parser *parser) {
 		}
 	}
 
-	if (parser->error) {
-		free_layer_map(parser->layer_map);
-		free_blacklist(parser->blacklst);
-		return false;
-	}
-
-	return true;
+	return !parser->error;
 }
 
 bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow_no_keycode) {
@@ -580,8 +574,6 @@ void parser_report_error(struct parser *parser, struct token token, const char *
 }
 
 void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bool thwart_hotloader) {
-	bool error = false;
-
 	for (int i = 0; i < buf_len(parser->load_directives); ++i) {
 		struct load_directive load = parser->load_directives[i];
 
@@ -593,8 +585,6 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 
 			if (parse_config(&directive_parser)) {
 				parser_do_directives(&directive_parser, hotloader, thwart_hotloader);
-			} else {
-				error = true;
 			}
 
 			parser_destroy(&directive_parser);
@@ -603,14 +593,9 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 				 load.option.cursor);
 		}
 
-		free(load.file);
+		tr_free(load.file);
 	}
 	buf_free(parser->load_directives);
-
-	if (error) {
-		free_layer_map(parser->layer_map);
-		free_blacklist(parser->blacklst);
-	}
 }
 
 bool parser_init(struct parser *parser, struct table *layer_map, struct table *blacklst, struct table *alias_map,
@@ -636,4 +621,4 @@ bool parser_init_text(struct parser *parser, char *text) {
 	return true;
 }
 
-void parser_destroy(struct parser *parser) { free(parser->tokenizer.buffer); }
+void parser_destroy(struct parser *parser) { tr_free(parser->tokenizer.buffer); }

@@ -4,8 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "tr_malloc.h"
+
 static struct bucket *table_new_bucket(const void *key, void *value) {
-	struct bucket *bucket = malloc(sizeof(struct bucket));
+	struct bucket *bucket = tr_malloc(sizeof(struct bucket));
 	bucket->key = key;
 	bucket->value = value;
 	bucket->next = NULL;
@@ -28,7 +30,7 @@ void table_init(struct table *table, int capacity, table_hash_func hash, table_c
 	table->capacity = capacity;
 	table->hash = hash;
 	table->compare = compare;
-	table->buckets = malloc(sizeof(struct bucket *) * capacity);
+	table->buckets = tr_malloc(sizeof(struct bucket *) * capacity);
 	memset(table->buckets, 0, sizeof(struct bucket *) * capacity);
 }
 
@@ -37,12 +39,12 @@ void table_free(struct table *table) {
 		struct bucket *next, *bucket = table->buckets[i];
 		while (bucket) {
 			next = bucket->next;
-			free(bucket);
+			tr_free(bucket);
 			bucket = next;
 		}
 	}
 	if (table->buckets) {
-		free(table->buckets);
+		tr_free(table->buckets);
 		table->buckets = NULL;
 	}
 }
@@ -74,7 +76,7 @@ void *table_remove(struct table *table, const void *key) {
 	if (*bucket) {
 		result = (*bucket)->value;
 		next = (*bucket)->next;
-		free(*bucket);
+		tr_free(*bucket);
 		*bucket = next;
 		--table->count;
 	}
@@ -89,7 +91,7 @@ void *table_reset(struct table *table, int *count) {
 
 	capacity = table->capacity;
 	*count = table->count;
-	values = malloc(sizeof(void *) * table->count);
+	values = tr_malloc(sizeof(void *) * table->count);
 	item = 0;
 
 	for (index = 0; index < capacity; ++index) {
@@ -97,7 +99,7 @@ void *table_reset(struct table *table, int *count) {
 		while (*bucket) {
 			values[item++] = (*bucket)->value;
 			next = (*bucket)->next;
-			free(*bucket);
+			tr_free(*bucket);
 			*bucket = next;
 			--table->count;
 		}

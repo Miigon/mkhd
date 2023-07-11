@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "log.h"
+#include "tr_malloc.h"
 #include "utils.h"
 
 #define FSEVENT_CALLBACK(name)                                                                                         \
@@ -127,12 +128,12 @@ static inline void hotloader_add_watched_entry(struct hotloader *hotloader, stru
 	if (!hotloader->watch_list) {
 		hotloader->watch_capacity = 32;
 		hotloader->watch_list =
-			(struct watched_entry *)malloc(hotloader->watch_capacity * sizeof(struct watched_entry));
+			(struct watched_entry *)tr_malloc(hotloader->watch_capacity * sizeof(struct watched_entry));
 	}
 
 	if (hotloader->watch_count >= hotloader->watch_capacity) {
 		hotloader->watch_capacity = (unsigned)ceil(hotloader->watch_capacity * 1.5f);
-		hotloader->watch_list = (struct watched_entry *)realloc(
+		hotloader->watch_list = (struct watched_entry *)tr_realloc(
 			hotloader->watch_list, hotloader->watch_capacity * sizeof(struct watched_entry));
 	}
 
@@ -221,6 +222,9 @@ void hotloader_end(struct hotloader *hotloader) {
 	if (!hotloader->enabled)
 		return;
 
+	// assuming: tr_malloc-ed resources already freed by `trctx_free_everything()`.
+	// so here we don't free any tr_malloc-ed pointers in hotloader.
+
 	FSEventStreamStop(hotloader->stream);
 	FSEventStreamInvalidate(hotloader->stream);
 	FSEventStreamRelease(hotloader->stream);
@@ -228,20 +232,9 @@ void hotloader_end(struct hotloader *hotloader) {
 	CFIndex count = CFArrayGetCount(hotloader->path);
 	for (unsigned index = 0; index < count; ++index) {
 		struct watched_entry *watch_info = hotloader->watch_list + index;
-		if (watch_info->kind == WATCH_KIND_FILE) {
-			free(watch_info->file_info.absolutepath);
-			free(watch_info->file_info.directory);
-			free(watch_info->file_info.filename);
-		} else if (watch_info->kind == WATCH_KIND_CATALOG) {
-			free(watch_info->catalog_info.directory);
-			if (watch_info->catalog_info.extension) {
-				free(watch_info->catalog_info.extension);
-			}
-		}
 		CFRelease(CFArrayGetValueAtIndex(hotloader->path, index));
 	}
 
 	CFRelease(hotloader->path);
-	free(hotloader->watch_list);
 	memset(hotloader, 0, sizeof(struct hotloader));
 }

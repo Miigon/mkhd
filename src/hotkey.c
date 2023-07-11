@@ -3,6 +3,7 @@
 #include "carbon.h"
 #include "log.h"
 #include "sbuffer.h"
+#include "tr_malloc.h"
 #include "utils.h"
 
 #define LRMOD_ALT 0
@@ -202,7 +203,7 @@ bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, c
 }
 
 struct layer *create_new_layer(const char *name) {
-	struct layer *layer = malloc(sizeof(struct layer));
+	struct layer *layer = tr_malloc(sizeof(struct layer));
 	memset(layer, 0, sizeof(struct layer));
 	layer->name = copy_string_malloc(name);
 
@@ -216,31 +217,6 @@ struct layer *create_new_layer(const char *name) {
 	layer->on_exit_layer = &noop;
 
 	return layer;
-}
-
-void free_layer_map(struct table *layer_map) {
-	// temporarily no-op
-	// todo: implement tracked malloc
-}
-
-void free_blacklist(struct table *blacklst) {
-	int count;
-	void **items = table_reset(blacklst, &count);
-	for (int index = 0; index < count; ++index) {
-		free(items[index]);
-	}
-
-	free(items);
-}
-
-void free_alias_map(struct table *alias_map) {
-	int count;
-	void **items = table_reset(alias_map, &count);
-	for (int index = 0; index < count; ++index) {
-		free(items[index]);
-	}
-
-	free(items);
 }
 
 static void cgevent_lrmod_flag_to_hotkey_lrmod_flag(CGEventFlags eventflags, uint32_t *flags, int mod) {
