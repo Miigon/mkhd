@@ -65,17 +65,15 @@ static struct trctx *memctx_global;
 static struct trctx *memctx_mstate;
 static struct trctx *memctx_event;
 
-static struct carbon_event carbon;
+static struct carbon_event carbon; // uses memctx_global
 static struct event_tap event_tap;
-static struct hotloader hotloader;
-static bool thwart_hotloader;
-static char config_file[4096];
 
+static char config_file[4096];
+static bool thwart_hotloader;
 bool verbose;
 
-static HOTLOADER_CALLBACK(config_handler);
-
 static struct mkhd_state *g_mstate = NULL;
+static struct hotloader hotloader; // uses memctx_mstate
 
 static void init_mstate(struct mkhd_state *mstate) {
 	table_init(&g_mstate->layer_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
@@ -89,8 +87,14 @@ static void init_mstate(struct mkhd_state *mstate) {
 	table_add(&mstate->layer_map, DEFAULT_LAYER, default_layer);
 }
 
+static HOTLOADER_CALLBACK(config_handler);
+
 static void load_config(char *absolutepath) {
-	trctx_set_memcontext(memctx_mstate);
+	struct trctx *old_context = trctx_set_memcontext(memctx_mstate);
+	int objects_freed = trctx_free_everything(memctx_mstate);
+	if (objects_freed != 0)
+		debug("mkhd: (config load) freed %d objects on old config.\n", objects_freed);
+
 	// everything within `g_mstate` will be tracked by tr_malloc within memctx_mstate (including the g_state object
 	// itseft).
 	g_mstate = tr_malloc(sizeof(struct mkhd_state));
@@ -123,14 +127,10 @@ static void load_config(char *absolutepath) {
 	}
 	int objects_survived = trctx_reclaim_empty_slots(memctx_mstate);
 	debug("mkhd: allocated %d objects on config load.\n", objects_survived);
-	trctx_set_memcontext(memctx_global);
+	trctx_set_memcontext(old_context);
 }
 
-static void reload_config() {
-	int objects_survived = trctx_free_everything(memctx_mstate);
-	debug("mkhd: (config reload) freed %d objects on old config.\n", objects_survived);
-	load_config(config_file);
-}
+static void reload_config() { load_config(config_file); }
 
 static HOTLOADER_CALLBACK(config_handler) {
 	BEGIN_TIMED_BLOCK("hotload_config");

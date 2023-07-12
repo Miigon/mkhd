@@ -11,6 +11,8 @@
 static struct table keymap_table;
 static char **keymap_keys = NULL;
 
+static struct trctx *memctx_locale = NULL;
+
 static int hash_keymap(const char *a) {
 	unsigned long hash = 0, high;
 	while (*a) {
@@ -32,15 +34,6 @@ static bool same_keymap(const char *a, const char *b) {
 	return *a == '\0' && *b == '\0';
 }
 
-static void free_keycode_map(void) {
-	for (int i = 0; i < buf_len(keymap_keys); ++i) {
-		tr_free(keymap_keys[i]);
-	}
-
-	buf_free(keymap_keys);
-	keymap_keys = NULL;
-}
-
 static uint32_t layout_dependent_keycodes[] = {
 	kVK_ANSI_A,			  kVK_ANSI_B,	   kVK_ANSI_C,		   kVK_ANSI_D,		   kVK_ANSI_E,
 	kVK_ANSI_F,			  kVK_ANSI_G,	   kVK_ANSI_H,		   kVK_ANSI_I,		   kVK_ANSI_J,
@@ -56,6 +49,12 @@ static uint32_t layout_dependent_keycodes[] = {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wint-to-void-pointer-cast"
 bool initialize_keycode_map(void) {
+	if (memctx_locale == NULL)
+		memctx_locale = trctx_new_context();
+	struct trctx *old_context = trctx_set_memcontext(memctx_locale);
+
+	trctx_free_everything(memctx_locale); // clean up old data.
+
 	UniChar chars[255];
 	UniCharCount len;
 	UInt32 state;
@@ -65,11 +64,11 @@ bool initialize_keycode_map(void) {
 	CFRelease(keyboard);
 
 	UCKeyboardLayout *keyboard_layout = (UCKeyboardLayout *)CFDataGetBytePtr(uchr);
-	if (!keyboard_layout)
+	if (!keyboard_layout) {
+		trctx_set_memcontext(old_context);
 		return false;
+	}
 
-	free_keycode_map();
-	table_free(&keymap_table);
 	table_init(&keymap_table, 61, (table_hash_func)hash_keymap, (table_compare_func)same_keymap);
 
 	// todo: maybe cache it?
@@ -88,6 +87,7 @@ bool initialize_keycode_map(void) {
 		}
 	}
 
+	trctx_set_memcontext(old_context);
 	// todo: do nothing if the keycode map did not changed.
 	return true;
 }

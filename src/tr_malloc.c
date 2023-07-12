@@ -106,4 +106,9 @@ int trctx_reclaim_empty_slots(struct trctx *ctx) {
 
 struct trctx *trctx_g_ctx = NULL;
 
-void trctx_set_memcontext(struct trctx *ctx) { trctx_g_ctx = ctx; }
+// returns the original context
+struct trctx *trctx_set_memcontext(struct trctx *ctx) {
+	struct trctx *old = trctx_g_ctx;
+	trctx_g_ctx = ctx;
+	return old;
+}

@@ -29,4 +29,5 @@ extern struct trctx *trctx_g_ctx; // global context. use `trctx_set_memcontext()
 #define tr_free(ptr) trctx_free(ptr)
 #define tr_realloc(ptr, sz) trctx_realloc(trctx_g_ctx, ptr, sz)
 
-void trctx_set_memcontext(struct trctx *ctx);
+// returns the original context
+struct trctx *trctx_set_memcontext(struct trctx *ctx);
