@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "mkhd.h"
-
 #define Modifier_Keycode_Alt 0x3A
 #define Modifier_Keycode_Shift 0x38
 #define Modifier_Keycode_Cmd 0x37
@@ -60,8 +58,9 @@ enum action_type {
 	Action_Nocapture, // do nothing and keep the original OS behaviour of the key event
 
 	// layer stack manipulation actions
-	Action_PushLayer, // activate a new layer (add it to the layer stack)
-	Action_PopLayer,  // pop the top layer from the layer stack
+	Action_PushLayer,		 // activate a new layer (add it to the layer stack)
+	Action_PushLayerOneshot, // activate a new layer for a single key press
+	Action_PopLayer,		 // pop the top layer from the layer stack
 
 	Action_Fallthrough, // delegate the event to the next lower layer in the layer stack
 						// (default behaviour of unmatched keys in any layers.)
@@ -74,8 +73,22 @@ struct action {
 	const char *argument;
 };
 
+enum keyevent_type {
+	Event_Null,
+
+	Event_Key,
+
+	// pseudo keys
+	Event_KeyDown,
+	Event_KeyUp,
+
+	Event_Unmatched, // triggers when a key matches no hotkey in this layer (default: Fallthrough)
+	Event_EnterLayer,
+	Event_ExitLayer,
+};
+
 struct keyevent {
-	// todo: implement special event (@enter_layer, @exit_layer, @unmatched, @keyup, @keydown, etc)
+	enum keyevent_type type;
 	uint32_t flags;
 	uint32_t key;
 };
@@ -92,13 +105,11 @@ struct hotkey {
 struct layer {
 	const char *name;
 	struct table hotkey_map; // <keyevent, hotkey>
+};
 
-	// actions triggered for special events (@unmatched, @enter_layer, etc).
-	// no need to null-check these. they are guaranteed to be initialized. (most of them are NoOp)
-	// todo: make these "pseudo hotkeys" in the layer.
-	struct action *on_unmatched; // what to do when a key matches no hotkey in this layer (default: Fallthrough)
-	struct action *on_enter_layer;
-	struct action *on_exit_layer;
+struct layerstack_frame {
+	struct layer *l;
+	bool oneshot;
 };
 
 static inline void add_flags(struct keyevent *event, uint32_t flag) { event->flags |= flag; }
@@ -114,9 +125,12 @@ unsigned long hash_keyevent(struct keyevent *a);
 struct keyevent create_keyevent_from_CGEvent(CGEventRef event);
 bool intercept_systemkey(CGEventRef event, struct keyevent *eventkey);
 
+struct mkhd_state;
+
 // returns whether to capture the event or not
 bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name);
 
 struct layer *create_new_layer(const char *name_moved);
+void add_hotkey_to_layer(struct layer *layer, struct hotkey *hotkey);
 
 void init_shell(void);

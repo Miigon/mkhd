@@ -144,6 +144,12 @@ struct token get_token(struct tokenizer *tokenizer) {
 	case ']': {
 		token.type = Token_EndList;
 	} break;
+	case '(': {
+		token.type = Token_BracketLeft;
+	} break;
+	case ')': {
+		token.type = Token_BracketRight;
+	} break;
 	case '"': {
 		token.text = tokenizer->at;
 		token.line = tokenizer->line;

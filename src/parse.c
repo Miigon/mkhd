@@ -69,7 +69,8 @@ static struct action *parse_action(struct parser *parser) {
 		debug("[cmd]: '%s'\n", action->argument);
 	} else if (token.type == Token_Option) {
 		DEFVAR_FROM_TOKEN_TEXT(option, token);
-		if (strcmp(option, "activate") == 0) {
+		bool activate_oneshot = strcmp(option, "oneshot") == 0;
+		if (activate_oneshot || strcmp(option, "activate") == 0) {
 			// activate a new layer
 			if (parser_match(parser, Token_Layer)) {
 				struct token layer_token = parser_previous(parser);
@@ -77,7 +78,7 @@ static struct action *parse_action(struct parser *parser) {
 					parser_report_error(parser, layer_token, "layer name can not be empty\n");
 					return action;
 				}
-				action->type = Action_PushLayer;
+				action->type = activate_oneshot ? Action_PushLayerOneshot : Action_PushLayer;
 				action->argument = copy_string_count_malloc(layer_token.text, layer_token.length);
 				debug("[activate]|%s\n", action->argument);
 			} else {
@@ -215,6 +216,7 @@ static uint32_t literal_keycode_value[] = {
 	NX_KEYTYPE_BRIGHTNESS_DOWN,
 	NX_KEYTYPE_ILLUMINATION_UP,
 	NX_KEYTYPE_ILLUMINATION_DOWN,
+	NX_KEYTYPE_CAPS_LOCK,
 };
 
 static inline void handle_implicit_literal_flags(struct keyevent *event, int literal_index) {
@@ -238,9 +240,10 @@ static void parse_key_literal(struct parser *parser, struct keyevent *keyevent) 
 }
 
 static enum hotkey_flag modifier_flags_value[] = {
-	Hotkey_Flag_Alt,	  Hotkey_Flag_LAlt,		Hotkey_Flag_RAlt, Hotkey_Flag_Shift, Hotkey_Flag_LShift,
-	Hotkey_Flag_RShift,	  Hotkey_Flag_Cmd,		Hotkey_Flag_LCmd, Hotkey_Flag_RCmd,	 Hotkey_Flag_Control,
-	Hotkey_Flag_LControl, Hotkey_Flag_RControl, Hotkey_Flag_Fn,	  Hotkey_Flag_Hyper, Hotkey_Flag_Meh,
+	Hotkey_Flag_Alt,	Hotkey_Flag_LAlt,	 Hotkey_Flag_RAlt,	   Hotkey_Flag_Shift,
+	Hotkey_Flag_LShift, Hotkey_Flag_RShift,	 Hotkey_Flag_Cmd,	   Hotkey_Flag_LCmd,
+	Hotkey_Flag_RCmd,	Hotkey_Flag_Control, Hotkey_Flag_LControl, Hotkey_Flag_RControl,
+	Hotkey_Flag_Fn,		Hotkey_Flag_Hyper,	 Hotkey_Flag_Meh,	   Hotkey_Flag_NX,
 };
 
 #define INVALID_KEY UINT32_MAX
@@ -311,13 +314,11 @@ static bool parse_modifier(struct parser *parser, struct keyevent *keyevent) {
 	return true;
 }
 
-static int parse_layers(struct parser *parser, struct hotkey *hotkey, struct layer **layer_list, int max_layers) {
+static int parse_layers(struct parser *parser, struct layer **layer_list, int max_layers) {
 	int idx = 0;
 	if (!parser_check(parser, Token_Layer)) {
 		// no layer specified, go with default layer.
-
 		struct layer *layer = find_layer_or_create(parser, DEFAULT_LAYER);
-		table_add(&layer->hotkey_map, &hotkey->event, hotkey);
 		debug("\tlayer: '%s'\n", layer->name);
 		layer_list[0] = layer;
 		return 1;
@@ -350,7 +351,7 @@ static void parse_hotkey(struct parser *parser) {
 	debug("hotkey :: #%d {\n", parser->current_token.line);
 
 	struct layer *layer_list[256];
-	int layer_cnt = parse_layers(parser, hotkey, layer_list, array_count(layer_list));
+	int layer_cnt = parse_layers(parser, layer_list, array_count(layer_list));
 	if (parser->error)
 		return;
 
@@ -372,8 +373,7 @@ static void parse_hotkey(struct parser *parser) {
 	// must do it after `parse_keyevent()`
 	for (int i = 0; i < layer_cnt; i++) {
 		struct layer *layer = layer_list[i];
-		table_add(&layer->hotkey_map, &hotkey->event, hotkey);
-		debug("\tlayer: '%s'\n", layer->name);
+		add_hotkey_to_layer(layer, hotkey);
 	}
 
 	debug("}\n");
@@ -483,16 +483,7 @@ bool parse_config(struct parser *parser) {
 	return !parser->error;
 }
 
-bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow_no_keycode) {
-	if (!((parser_check(parser, Token_Modifier)) || (parser_check(parser, Token_Literal)) ||
-		  (parser_check(parser, Token_Key_Hex)) || (parser_check(parser, Token_Key)) ||
-		  (parser_check(parser, Token_Alias)))) {
-		parser_report_error(parser, parser_peek(parser), "expected a hotkey\n");
-		return false;
-	}
-
-	keyevent->key = INVALID_KEY; // keycode 0 is actually a valid keycode (kVK_ANSI_A)
-
+static bool parse_keycombination(struct parser *parser, struct keyevent *keyevent, bool allow_no_keycode) {
 	bool found_modifier = parse_modifier(parser, keyevent);
 	if (parser->error) {
 		return false;
@@ -530,6 +521,53 @@ bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow
 	}
 
 	return true;
+}
+
+bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow_no_keycode) {
+	if (!(parser_check(parser, Token_Modifier) || parser_check(parser, Token_Literal) ||
+		  parser_check(parser, Token_Key_Hex) || parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) ||
+		  parser_check(parser, Token_Event))) {
+		parser_report_error(parser, parser_peek(parser), "expected a hotkey\n");
+		return false;
+	}
+
+	keyevent->key = INVALID_KEY; // keycode 0 is actually a valid keycode (kVK_ANSI_A)
+
+	if (parser_match(parser, Token_Event)) { // @pseudo_keys
+		DEFVAR_FROM_TOKEN_TEXT(pktype, parser_previous(parser));
+		if (strcmp(pktype, "unmatched") == 0) {
+			keyevent->type = Event_Unmatched;
+		} else if (strcmp(pktype, "enter_layer") == 0) {
+			keyevent->type = Event_EnterLayer;
+		} else if (strcmp(pktype, "exit_layer") == 0) {
+			keyevent->type = Event_ExitLayer;
+		} else if (strcmp(pktype, "keydown") == 0) {
+			keyevent->type = Event_KeyDown;
+		} else if (strcmp(pktype, "keyup") == 0) {
+			keyevent->type = Event_KeyUp;
+		} else {
+			parser_report_error(parser, parser_previous(parser), "invalid pseudo key: @%s\n", pktype);
+			return false;
+		}
+		debug("\tpseudo_key: @%s\n", pktype);
+
+		if (keyevent->type == Event_Key || keyevent->type == Event_KeyDown || keyevent->type == Event_KeyUp) {
+			if (!parser_match(parser, Token_BracketLeft)) {
+				parser_report_error(parser, parser_peek(parser), "expected (\n");
+				return false;
+			}
+			bool ret = parse_keycombination(parser, keyevent, true);
+			if (!parser_match(parser, Token_BracketRight)) {
+				parser_report_error(parser, parser_peek(parser), "expected )\n");
+				return false;
+			}
+			return ret;
+		}
+		return true;
+	} else {
+		keyevent->type = Event_Key;
+		return parse_keycombination(parser, keyevent, allow_no_keycode);
+	}
 }
 
 struct token parser_peek(struct parser *parser) { return parser->current_token; }

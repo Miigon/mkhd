@@ -64,11 +64,11 @@ void *trctx_realloc(struct trctx *ctx, void *ptr, int sz) {
 	if (ptr == NULL)
 		return trctx_malloc(ctx, sz);
 	ptr = ptr - HDR_OFFSET;
-	ptr = realloc(ptr, sz + HDR_OFFSET);
-	PTR_HDR(ptr)->slot_ref = ptr;
 	if (PTR_HDR(ptr)->ctx != ctx) {
 		error("mkhd: trctx_realloc: try to realloc object from another memory context\n");
 	}
+	ptr = realloc(ptr, sz + HDR_OFFSET);
+	*PTR_HDR(ptr)->slot_ref = ptr;
 
 	return ptr + HDR_OFFSET;
 }

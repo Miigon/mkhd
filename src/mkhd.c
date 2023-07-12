@@ -46,7 +46,6 @@ extern CGError CGSRegisterNotifyProc(void *handler, uint32_t type, void *context
 #define MKHD_PIDFILE_FMT "/tmp/mkhd_%s.pid"
 
 #define VERSION_OPT_LONG "--version"
-#define VERSION_OPT_SHRT "-v"
 
 #define SERVICE_INSTALL_OPT "--install-service"
 #define SERVICE_UNINSTALL_OPT "--uninstall-service"
@@ -71,6 +70,7 @@ static struct event_tap event_tap;
 static char config_file[4096];
 static bool thwart_hotloader;
 bool verbose;
+bool veryverbose;
 
 static struct mkhd_state *g_mstate = NULL;
 static struct hotloader hotloader; // uses memctx_mstate
@@ -82,7 +82,10 @@ static void init_mstate(struct mkhd_state *mstate) {
 
 	// initialize default layer.
 	struct layer *default_layer = create_new_layer(DEFAULT_LAYER);
-	mstate->layerstack[0] = default_layer;
+	mstate->layerstack[0] = (struct layerstack_frame){
+		.l = default_layer,
+		.oneshot = false,
+	};
 	mstate->layerstack_cnt = 1;
 	table_add(&mstate->layer_map, DEFAULT_LAYER, default_layer);
 }
@@ -178,6 +181,66 @@ static EVENT_TAP_CALLBACK(key_observer_handler) {
 	return event;
 }
 
+#define MAX_KEYDOWN 10 // I'm told it's the amount of fingers an average human has.
+static struct keyevent keydown_keys[MAX_KEYDOWN] = {{.type = Event_Null}};
+
+static inline bool keydown_keyevent_correspond(struct keyevent *a, struct keyevent *b) {
+	// purposefully does not check modifiers.
+	return a->key == b->key && (a->flags & Hotkey_Flag_NX) == (b->flags & Hotkey_Flag_NX);
+}
+
+static bool process_keydown(struct keyevent eventkey) {
+	// check if key is already in keydown state, if it is, ignore.
+	for (int i = 0; i < MAX_KEYDOWN; i++) {
+		if (keydown_keys[i].type != Event_Null && keydown_keyevent_correspond(&keydown_keys[i], &eventkey)) {
+			return true;
+		}
+	}
+	// try to process as @keydown first
+	eventkey.type = Event_KeyDown;
+	bool result = find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
+	if (result) {
+		// record key as in "down" state
+		bool found_slot = false;
+		for (int i = 0; i < MAX_KEYDOWN; i++) {
+			if (keydown_keys[i].type == Event_Null) {
+				keydown_keys[i] = eventkey;
+				found_slot = true;
+				break;
+			}
+		}
+		if (!found_slot) {
+			warn("mkhd: keys in keydown state exceeded maximum %d.\n", MAX_KEYDOWN);
+		}
+		return result;
+	} else {
+		// if a @keydown binding is not set, process as normal key.
+		eventkey.type = Event_Key;
+		return find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
+	}
+}
+
+static bool process_keyup(struct keyevent eventkey) {
+	bool found = false;
+	for (int i = 0; i < MAX_KEYDOWN; i++) {
+		// clear keydown state for the key
+		if (keydown_keys[i].type != Event_Null && keydown_keyevent_correspond(&keydown_keys[i], &eventkey)) {
+			// graft modifier flags on keydown to keyup
+			// fixes incorrect @keyup triggering when modifier is up before the key
+			eventkey.flags = keydown_keys[i].flags;
+			keydown_keys[i] = (struct keyevent){.type = Event_Null};
+			found = true;
+			break;
+		}
+	}
+	if (found) {
+
+		eventkey.type = Event_KeyUp;
+		return find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
+	}
+	return false;
+}
+
 static EVENT_TAP_CALLBACK(key_handler_impl) {
 	switch (type) {
 	case kCGEventTapDisabledByTimeout:
@@ -190,9 +253,19 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 		if (table_find(&g_mstate->blacklst, carbon.process_name))
 			return event;
 
-		BEGIN_TIMED_BLOCK("handle_keypress");
-		struct keyevent eventkey = create_keyevent_from_CGEvent(event);
-		bool result = find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
+		BEGIN_TIMED_BLOCK("handle_keydown");
+		bool result = process_keydown(create_keyevent_from_CGEvent(event));
+		END_TIMED_BLOCK();
+
+		if (result)
+			return NULL;
+	} break;
+	case kCGEventKeyUp: {
+		if (table_find(&g_mstate->blacklst, carbon.process_name))
+			return event;
+
+		BEGIN_TIMED_BLOCK("handle_keyup");
+		bool result = process_keyup(create_keyevent_from_CGEvent(event));
 		END_TIMED_BLOCK();
 
 		if (result)
@@ -204,7 +277,11 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 
 		struct keyevent eventkey;
 		if (intercept_systemkey(event, &eventkey)) {
-			bool result = find_and_exec_keyevent(g_mstate, &eventkey, carbon.process_name);
+			bool result = false;
+			if (eventkey.type == Event_KeyDown)
+				result = process_keydown(eventkey);
+			else if (eventkey.type == Event_KeyUp)
+				result = process_keyup(eventkey);
 			if (result)
 				return NULL;
 		}
@@ -289,7 +366,7 @@ static void create_pid_file(void) {
 static inline bool string_equals(const char *a, const char *b) { return a && b && strcmp(a, b) == 0; }
 
 static bool parse_arguments(int argc, char **argv) {
-	if ((string_equals(argv[1], VERSION_OPT_LONG)) || (string_equals(argv[1], VERSION_OPT_SHRT))) {
+	if (string_equals(argv[1], VERSION_OPT_LONG)) {
 		fprintf(stdout, "mkhd-v%d.%d.%d\n", MAJOR, MINOR, PATCH);
 		exit(EXIT_SUCCESS);
 	}
@@ -316,20 +393,20 @@ static bool parse_arguments(int argc, char **argv) {
 
 	int option;
 	const char *short_option = "VPvc:k:t:rho";
-	struct option long_option[] = {{"verbose", no_argument, NULL, 'V'},
-								   {"profile", no_argument, NULL, 'P'},
-								   {"config", required_argument, NULL, 'c'},
-								   {"no-hotload", no_argument, NULL, 'h'},
-								   {"key", required_argument, NULL, 'k'},
-								   {"text", required_argument, NULL, 't'},
-								   {"reload", no_argument, NULL, 'r'},
-								   {"observe", no_argument, NULL, 'o'},
-								   {NULL, 0, NULL, 0}};
+	struct option long_option[] = {{"verbose", no_argument, NULL, 'v'},	   {"veryverbose", no_argument, NULL, 'V'},
+								   {"profile", no_argument, NULL, 'P'},	   {"config", required_argument, NULL, 'c'},
+								   {"no-hotload", no_argument, NULL, 'h'}, {"key", required_argument, NULL, 'k'},
+								   {"text", required_argument, NULL, 't'}, {"reload", no_argument, NULL, 'r'},
+								   {"observe", no_argument, NULL, 'o'},	   {NULL, 0, NULL, 0}};
 
 	while ((option = getopt_long(argc, argv, short_option, long_option, NULL)) != -1) {
 		switch (option) {
+		case 'v': {
+			verbose = true;
+		} break;
 		case 'V': {
 			verbose = true;
+			veryverbose = true;
 		} break;
 		case 'P': {
 			profile = true;
@@ -504,7 +581,7 @@ int main(int argc, char **argv) {
 	END_SCOPED_TIMED_BLOCK();
 
 	BEGIN_SCOPED_TIMED_BLOCK("begin_eventtap");
-	event_tap.mask = (1 << kCGEventKeyDown) | (1 << NX_SYSDEFINED);
+	event_tap.mask = (1 << kCGEventKeyDown) | (1 << kCGEventKeyUp) | (1 << NX_SYSDEFINED);
 	event_tap_begin(&event_tap, key_handler);
 	END_SCOPED_TIMED_BLOCK();
 	END_SCOPED_TIMED_BLOCK();

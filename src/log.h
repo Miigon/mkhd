@@ -6,6 +6,17 @@
 #include <string.h>
 
 extern bool verbose;
+extern bool veryverbose;
+
+static inline void ddebug(const char *format, ...) {
+	if (!veryverbose)
+		return;
+
+	va_list args;
+	va_start(args, format);
+	vfprintf(stdout, format, args);
+	va_end(args);
+}
 
 static inline void debug(const char *format, ...) {
 	if (!verbose)

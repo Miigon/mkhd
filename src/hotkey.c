@@ -2,6 +2,7 @@
 
 #include "carbon.h"
 #include "log.h"
+#include "mkhd.h"
 #include "sbuffer.h"
 #include "tr_malloc.h"
 #include "utils.h"
@@ -48,11 +49,18 @@ static bool compare_nx(struct keyevent *a, struct keyevent *b) {
 }
 
 bool compare_keyevent(struct keyevent *a, struct keyevent *b) {
-	return compare_lr_mod(a, b, LRMOD_ALT) && compare_lr_mod(a, b, LRMOD_CMD) && compare_lr_mod(a, b, LRMOD_CTRL) &&
-		   compare_lr_mod(a, b, LRMOD_SHIFT) && compare_fn(a, b) && compare_nx(a, b) && a->key == b->key;
+	if (a->type != b->type)
+		return false;
+
+	if (a->type == Event_Key || a->type == Event_KeyDown || a->type == Event_KeyUp) {
+		return compare_lr_mod(a, b, LRMOD_ALT) && compare_lr_mod(a, b, LRMOD_CMD) && compare_lr_mod(a, b, LRMOD_CTRL) &&
+			   compare_lr_mod(a, b, LRMOD_SHIFT) && compare_fn(a, b) && compare_nx(a, b) && a->key == b->key;
+	} else {
+		return a->type == b->type;
+	}
 }
 
-unsigned long hash_keyevent(struct keyevent *a) { return a->key; }
+unsigned long hash_keyevent(struct keyevent *a) { return ((uint64_t)a->type << 32) & a->key; }
 
 bool compare_string(char *a, char *b) {
 	while (*a && *b && *a == *b) {
@@ -86,10 +94,12 @@ static inline void fork_and_exec(const char *command) {
 }
 
 static inline struct action *find_process_action(struct hotkey *hotkey, const char *process_name) {
+	if (hotkey == NULL)
+		return NULL;
 	struct action *result = NULL;
 	bool found = false;
 
-	if (hotkey->process_names) { // process-specific mappings
+	if (process_name && hotkey->process_names) { // process-specific mappings
 		for (int i = 0; i < buf_len(hotkey->process_names); ++i) {
 			if (same_string(process_name, hotkey->process_names[i])) {
 				result = hotkey->actions[i];
@@ -105,83 +115,102 @@ static inline struct action *find_process_action(struct hotkey *hotkey, const ch
 	return result;
 }
 
+static struct action action_fallthrough = {.type = Action_Fallthrough, .argument = NULL};
+static struct action action_noop = {.type = Action_NoOp, .argument = NULL};
+static struct action action_nocapture = {.type = Action_Nocapture, .argument = NULL};
+
+// @pseudo_keys like @unmatched, @enter_layer, @exit_layer. See `enum keyevent_type`.
+static struct action *find_pseudo_keyevent(struct layer *layer, enum keyevent_type type) {
+	struct keyevent event = {.type = type};
+	return find_process_action(table_find(&layer->hotkey_map, &event), NULL);
+}
+
 bool execute_action(struct mkhd_state *mstate, struct action *action) {
-	int fallthrough_depth = mstate->layerstack_cnt - 1;
-
-#define cur_layer() (mstate->layerstack[fallthrough_depth])
-
-	// do action
-	while (true) {
-		switch (action->type) {
-		// === non-terminating actions ===
-		case Action_Fallthrough: {
-			if (fallthrough_depth == 0) {
-				// special case: `.fallthrough` at the lowest layer frame is the same as `.nocapture`
-				return false;
-			}
-			struct layer *oldlayer = cur_layer();
-			fallthrough_depth--;
-			debug("mkhd: .fallthrough |%s -> |%s\n", oldlayer->name, cur_layer()->name);
-			continue;
-		}
-		// === terminating actions ===
-		case Action_NoOp:
-			debug("mkhd: captured\n");
-			return true; // capture
-		case Action_Command:
-			fork_and_exec(action->argument);
-			debug("mkhd: cmd: %s\n", action->argument);
-			return true; // capture
-		case Action_Nocapture:
-			return false; // no capture
-		case Action_PushLayer: {
-			if (strcmp(MS_CURRENT_LAYER(mstate)->name, action->argument) == 0) {
-				// by default a unbind key in a layer will .fallthrough
-				// this means if you have a rule to enter layer |foo like this:
-				//
-				// 		|foo ctrl-a -> |bar
-				//
-				// pressing `ctrl-a` multiple times will trigger multiple PushLayer(|bar) actions
-				// due to the key press falling through and triggering the |foo layer rule even in |bar layer.
-				//
-				// this can overflow the layer stack if the user spams the layer switch hotkey.
-				//
-				// this check guards against that by not allowing the same layer to be activated for more than once
-				// consecutively
-				return true;
-			}
-			mstate->layerstack_cnt++;
-			if (mstate->layerstack_cnt > LAYERSTACK_MAX) {
-				warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n",
-					 LAYERSTACK_MAX);
-				warn("mkhd: last 5 layers: ... -> |%s -> |%s -> |%s -> |%s -> |%s",
-					 mstate->layerstack[LAYERSTACK_MAX - 5]->name, mstate->layerstack[LAYERSTACK_MAX - 4]->name,
-					 mstate->layerstack[LAYERSTACK_MAX - 3]->name, mstate->layerstack[LAYERSTACK_MAX - 2]->name,
-					 mstate->layerstack[LAYERSTACK_MAX - 1]->name);
-				return false; // no capture
-			}
-			struct layer *new_layer = table_find(&mstate->layer_map, action->argument);
-			MS_CURRENT_LAYER(mstate) = new_layer;
-			debug("mkhd: layerswitch |> |%s\n", new_layer->name);
-
-			return true; // capture
-		}
-		case Action_PopLayer:
-			if (mstate->layerstack_cnt == 1) {
-				warn("mkhd: can not deactivate default layer. nothing was done.");
-				return true;
-			}
-			mstate->layerstack_cnt--;
-			debug("mkhd: poplayer, back to |%s\n", MS_CURRENT_LAYER(mstate)->name);
-			return true; // capture
-		default:
-			warn("mkhd: unknown action %d\n", action->type);
-			return false;
-		}
-		// unreachable
-		// do `continue` or `return` in the cases instead.
-		error("here should be unreachable. file a bug report!\n");
+	if (action == NULL) {
+		return false;
 	}
+	switch (action->type) {
+	case Action_Fallthrough: {
+		error("mkhd: execute_action(): Action_Fallthrough is not executable.\n");
+		return false;
+	}
+	case Action_NoOp:
+		return true; // capture
+	case Action_Command:
+		fork_and_exec(action->argument);
+		ddebug("mkhd: cmd: %s\n", action->argument);
+		return true; // capture
+	case Action_Nocapture:
+		return false; // no capture
+	case Action_PushLayerOneshot:
+	case Action_PushLayer: {
+		if (strcmp(MS_CURRENT_LAYER(mstate).l->name, action->argument) == 0) {
+			// by default a unbind key in a layer will .fallthrough
+			// this means if you have a rule to enter layer |foo like this:
+			//
+			// 		|foo ctrl-a .activate |bar
+			//
+			// pressing `ctrl-a` multiple times will trigger multiple PushLayer(|bar) actions
+			// due to the key press falling through and triggering the |foo layer rule even in |bar layer.
+			//
+			// this can overflow the layer stack if the user spams the layer switch hotkey.
+			//
+			// this check guards against that by not allowing the same layer to be activated for more than once
+			// consecutively
+			return true;
+		}
+		mstate->layerstack_cnt++;
+		if (mstate->layerstack_cnt > LAYERSTACK_MAX) {
+			warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n",
+				 LAYERSTACK_MAX);
+			warn("mkhd: last 5 layers: ... -> |%s -> |%s -> |%s -> |%s -> |%s",
+				 mstate->layerstack[LAYERSTACK_MAX - 5].l->name, mstate->layerstack[LAYERSTACK_MAX - 4].l->name,
+				 mstate->layerstack[LAYERSTACK_MAX - 3].l->name, mstate->layerstack[LAYERSTACK_MAX - 2].l->name,
+				 mstate->layerstack[LAYERSTACK_MAX - 1].l->name);
+			return false; // no capture
+		}
+		struct layer *new_layer = table_find(&mstate->layer_map, action->argument);
+		MS_CURRENT_LAYER(mstate) = (struct layerstack_frame){
+			.l = new_layer,
+			.oneshot = (action->type == Action_PushLayerOneshot),
+		};
+		debug("mkhd: activate %s |%s\n", (MS_CURRENT_LAYER(mstate).oneshot ? "(oneshot)" : ""), new_layer->name);
+		execute_action(mstate, find_pseudo_keyevent(new_layer, Event_EnterLayer));
+
+		return true; // capture
+	}
+	case Action_PopLayer:
+		if (mstate->layerstack_cnt == 1) {
+			warn("mkhd: can not deactivate default layer. nothing was done.");
+			return true;
+		}
+		struct layerstack_frame *top = &MS_CURRENT_LAYER(mstate);
+		mstate->layerstack_cnt--;
+		debug("mkhd: poplayer |%s, to |%s\n", top->l->name, MS_CURRENT_LAYER(mstate).l->name);
+		execute_action(mstate, find_pseudo_keyevent(top->l, Event_ExitLayer));
+		return true; // capture
+	default:
+		warn("mkhd: unknown action %d\n", action->type);
+		return false;
+	}
+}
+
+static struct action *find_keyevent_action_in_layer(struct layer *layer, struct keyevent *event,
+													const char *process_name) {
+	struct hotkey *hotkey = table_find(&layer->hotkey_map, event);
+	struct action *action = NULL;
+	if (hotkey == NULL) {
+		ddebug("unmatched in layer |%s\n", layer->name);
+		if (event->type == Event_KeyDown) {
+			// unmatched keydown will always fallthrough and never trigger @unmatched
+			action = &action_fallthrough;
+		} else {
+			action = find_pseudo_keyevent(layer, Event_Unmatched);
+		}
+	} else {
+		action = find_process_action(hotkey, process_name);
+	}
+	return action;
 }
 
 bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name) {
@@ -189,17 +218,57 @@ bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, c
 
 #define cur_layer() (mstate->layerstack[fallthrough_depth])
 
-	debug("mkhd: event: %d\n", event->key);
+	ddebug("mkhd: event: type=%d key=%d flags=%d\n", event->type, event->key, event->flags);
 
-	struct hotkey *hotkey = table_find(&cur_layer()->hotkey_map, event);
-	struct action *action = NULL;
-	if (hotkey == NULL) {
-		// unmatched, trigger on_unmatched event
-		action = cur_layer()->on_unmatched;
-	} else {
-		action = find_process_action(hotkey, process_name);
+	// current top layer before executing any action
+	struct layerstack_frame *top = &cur_layer();
+
+	// find a layer that can process the event in the layer stack, from the top down.
+	while (true) {
+		struct action *action = find_keyevent_action_in_layer(cur_layer().l, event, process_name);
+		ddebug("action->type = %d\n", action->type);
+		if (action && action->type == Action_Fallthrough) {
+			if (fallthrough_depth == 0) {
+				// special case: `.fallthrough` at the lowest layer frame is the same as `.nocapture`
+				action = &action_nocapture;
+			} else {
+
+				struct layer *oldlayer = cur_layer().l;
+				fallthrough_depth--;
+				ddebug("mkhd: .fallthrough |%s -> |%s\n", oldlayer->name, cur_layer().l->name);
+				continue;
+			}
+		}
+
+		// found a layer with action->type != Action_Fallthrough
+
+		// Event_KeyDown alone won't consume a oneshot
+		bool should_pop_oneshot = top->oneshot && (event->type == Event_Key || event->type == Event_KeyUp);
+		if (should_pop_oneshot) {
+			// if the top layer is oneshot, remove it first
+			mstate->layerstack_cnt--;
+			debug("mkhd: pop oneshot layer |%s\n", top->l->name);
+		}
+		bool res = execute_action(mstate, action);
+		if (should_pop_oneshot) {
+			execute_action(mstate, find_pseudo_keyevent(top->l, Event_ExitLayer));
+		}
+		return res;
 	}
-	return execute_action(mstate, action);
+}
+
+static struct hotkey *create_pseudo_key_hotkey(enum keyevent_type type, struct action *action) {
+	struct hotkey *hotkey = tr_malloc(sizeof(struct hotkey));
+	memset(hotkey, 0, sizeof(struct hotkey));
+
+	hotkey->event.type = type;
+	hotkey->process_default_action = action;
+
+	return hotkey;
+}
+
+void add_hotkey_to_layer(struct layer *layer, struct hotkey *hotkey) {
+	table_replace(&layer->hotkey_map, &hotkey->event, hotkey);
 }
 
 struct layer *create_new_layer(const char *name) {
@@ -209,12 +278,9 @@ struct layer *create_new_layer(const char *name) {
 
 	table_init(&layer->hotkey_map, 131, (table_hash_func)hash_keyevent, (table_compare_func)compare_keyevent);
 
-	static struct action fallthrough = {.type = Action_Fallthrough, .argument = NULL};
-	static struct action noop = {.type = Action_NoOp, .argument = NULL};
-
-	layer->on_unmatched = &fallthrough;
-	layer->on_enter_layer = &noop;
-	layer->on_exit_layer = &noop;
+	add_hotkey_to_layer(layer, create_pseudo_key_hotkey(Event_Unmatched, &action_fallthrough));
+	add_hotkey_to_layer(layer, create_pseudo_key_hotkey(Event_EnterLayer, &action_noop));
+	add_hotkey_to_layer(layer, create_pseudo_key_hotkey(Event_ExitLayer, &action_noop));
 
 	return layer;
 }
@@ -253,7 +319,8 @@ static uint32_t cgevent_flags_to_hotkey_flags(uint32_t eventflags) {
 }
 
 struct keyevent create_keyevent_from_CGEvent(CGEventRef event) {
-	return (struct keyevent){.key = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode),
+	return (struct keyevent){.type = Event_Key,
+							 .key = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode),
 							 .flags = cgevent_flags_to_hotkey_flags(CGEventGetFlags(event))};
 }
 
@@ -265,9 +332,10 @@ bool intercept_systemkey(CGEventRef event, struct keyevent *eventkey) {
 	uint8_t key_stype = data[123];
 	CFRelease(event_data);
 
-	bool result = ((key_state == NX_KEYDOWN) && (key_stype == NX_SUBTYPE_AUX_CONTROL_BUTTONS));
+	bool result = ((key_state == NX_KEYDOWN || key_state == NX_KEYUP) && (key_stype == NX_SUBTYPE_AUX_CONTROL_BUTTONS));
 
 	if (result) {
+		eventkey->type = key_state == NX_KEYUP ? Event_KeyUp : Event_KeyDown;
 		eventkey->key = key_code;
 		eventkey->flags = cgevent_flags_to_hotkey_flags(CGEventGetFlags(event)) | Hotkey_Flag_NX;
 	}

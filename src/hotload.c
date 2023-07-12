@@ -231,7 +231,6 @@ void hotloader_end(struct hotloader *hotloader) {
 
 	CFIndex count = CFArrayGetCount(hotloader->path);
 	for (unsigned index = 0; index < count; ++index) {
-		struct watched_entry *watch_info = hotloader->watch_list + index;
 		CFRelease(CFArrayGetValueAtIndex(hotloader->path, index));
 	}
 

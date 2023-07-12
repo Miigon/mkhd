@@ -53,8 +53,6 @@ bool initialize_keycode_map(void) {
 		memctx_locale = trctx_new_context();
 	struct trctx *old_context = trctx_set_memcontext(memctx_locale);
 
-	trctx_free_everything(memctx_locale); // clean up old data.
-
 	UniChar chars[255];
 	UniCharCount len;
 	UInt32 state;
@@ -69,6 +67,8 @@ bool initialize_keycode_map(void) {
 		return false;
 	}
 
+	trctx_free_everything(memctx_locale); // clean up old data.
+	keymap_keys = NULL;
 	table_init(&keymap_table, 61, (table_hash_func)hash_keymap, (table_compare_func)same_keymap);
 
 	// todo: maybe cache it?

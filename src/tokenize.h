@@ -2,7 +2,7 @@
 
 static const char *modifier_flags_str[] = {
 	"alt",	"lalt", "ralt",	 "shift", "lshift", "rshift", "cmd", "lcmd",
-	"rcmd", "ctrl", "lctrl", "rctrl", "fn",		"hyper",  "meh",
+	"rcmd", "ctrl", "lctrl", "rctrl", "fn",		"hyper",  "meh", "nx",
 };
 
 static const char *literal_keycode_str[] = {"return",
@@ -52,7 +52,8 @@ static const char *literal_keycode_str[] = {"return",
 											"brightness_up",
 											"brightness_down",
 											"illumination_up",
-											"illumination_down"};
+											"illumination_down",
+											"capslock"};
 
 enum token_type {
 	Token_Identifier,
@@ -74,6 +75,9 @@ enum token_type {
 
 	Token_BeginList, // [
 	Token_EndList,	 // ]
+
+	Token_BracketLeft,	// (
+	Token_BracketRight, // )
 
 	Token_Alias,
 	Token_Event,
