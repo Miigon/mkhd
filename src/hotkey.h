@@ -129,6 +129,7 @@ struct mkhd_state;
 
 // returns whether to capture the event or not
 bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, const char *process_name);
+bool execute_action(struct mkhd_state *mstate, struct action *action, int in_layer);
 
 struct layer *create_new_layer(const char *name_moved);
 void add_hotkey_to_layer(struct layer *layer, struct hotkey *hotkey);

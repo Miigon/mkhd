@@ -125,7 +125,21 @@ static struct action *find_pseudo_keyevent(struct layer *layer, enum keyevent_ty
 	return find_process_action(table_find(&layer->hotkey_map, &event), NULL);
 }
 
-bool execute_action(struct mkhd_state *mstate, struct action *action) {
+static void recursive_layer_pop(struct mkhd_state *mstate, int popcnt) {
+	for (int i = 0; i < popcnt; i++) {
+		if (mstate->layerstack_cnt == 1) {
+			warn("mkhd: can not deactivate default layer. nothing was done.");
+			return;
+		}
+		int idx = mstate->layerstack_cnt - 1;
+		struct layer *top = mstate->layerstack[idx].l;
+		mstate->layerstack_cnt--;
+		debug("mkhd: poplayer |%s, to |%s\n", top->name, MS_CURRENT_LAYER(mstate).l->name);
+		execute_action(mstate, find_pseudo_keyevent(top, Event_ExitLayer), idx);
+	}
+}
+
+bool execute_action(struct mkhd_state *mstate, struct action *action, int in_layer) {
 	if (action == NULL) {
 		return false;
 	}
@@ -144,21 +158,9 @@ bool execute_action(struct mkhd_state *mstate, struct action *action) {
 		return false; // no capture
 	case Action_PushLayerOneshot:
 	case Action_PushLayer: {
-		if (strcmp(MS_CURRENT_LAYER(mstate).l->name, action->argument) == 0) {
-			// by default a unbind key in a layer will .fallthrough
-			// this means if you have a rule to enter layer |foo like this:
-			//
-			// 		|foo ctrl-a .activate |bar
-			//
-			// pressing `ctrl-a` multiple times will trigger multiple PushLayer(|bar) actions
-			// due to the key press falling through and triggering the |foo layer rule even in |bar layer.
-			//
-			// this can overflow the layer stack if the user spams the layer switch hotkey.
-			//
-			// this check guards against that by not allowing the same layer to be activated for more than once
-			// consecutively
-			return true;
-		}
+		// pops anything in the layer stack above the layer that triggered this Action_PushLayer
+		recursive_layer_pop(mstate, mstate->layerstack_cnt - in_layer - 1);
+		// push the new layer
 		mstate->layerstack_cnt++;
 		if (mstate->layerstack_cnt > LAYERSTACK_MAX) {
 			warn("mkhd: layer stack overflow (max %d)! maybe you have a activating (->) loop in your config?\n",
@@ -175,19 +177,13 @@ bool execute_action(struct mkhd_state *mstate, struct action *action) {
 			.oneshot = (action->type == Action_PushLayerOneshot),
 		};
 		debug("mkhd: activate %s |%s\n", (MS_CURRENT_LAYER(mstate).oneshot ? "(oneshot)" : ""), new_layer->name);
-		execute_action(mstate, find_pseudo_keyevent(new_layer, Event_EnterLayer));
+		execute_action(mstate, find_pseudo_keyevent(new_layer, Event_EnterLayer), mstate->layerstack_cnt - 1);
 
 		return true; // capture
 	}
 	case Action_PopLayer:
-		if (mstate->layerstack_cnt == 1) {
-			warn("mkhd: can not deactivate default layer. nothing was done.");
-			return true;
-		}
-		struct layerstack_frame *top = &MS_CURRENT_LAYER(mstate);
-		mstate->layerstack_cnt--;
-		debug("mkhd: poplayer |%s, to |%s\n", top->l->name, MS_CURRENT_LAYER(mstate).l->name);
-		execute_action(mstate, find_pseudo_keyevent(top->l, Event_ExitLayer));
+		// `.deactivate` is relative to the current fallthrough level and pops everything above(including current).
+		recursive_layer_pop(mstate, mstate->layerstack_cnt - in_layer);
 		return true; // capture
 	default:
 		warn("mkhd: unknown action %d\n", action->type);
@@ -222,6 +218,7 @@ bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, c
 
 	// current top layer before executing any action
 	struct layerstack_frame *top = &cur_layer();
+	int top_idx = fallthrough_depth;
 
 	// find a layer that can process the event in the layer stack, from the top down.
 	while (true) {
@@ -249,9 +246,9 @@ bool find_and_exec_keyevent(struct mkhd_state *mstate, struct keyevent *event, c
 			mstate->layerstack_cnt--;
 			debug("mkhd: pop oneshot layer |%s\n", top->l->name);
 		}
-		bool res = execute_action(mstate, action);
+		bool res = execute_action(mstate, action, fallthrough_depth);
 		if (should_pop_oneshot) {
-			execute_action(mstate, find_pseudo_keyevent(top->l, Event_ExitLayer));
+			execute_action(mstate, find_pseudo_keyevent(top->l, Event_ExitLayer), top_idx);
 		}
 		return res;
 	}
