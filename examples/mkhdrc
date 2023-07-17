@@ -218,13 +218,13 @@ alt - k .macro [ .k(h).k(e).k(l).k(l).k(o) ]
 # treated like a hotkey. this can be achieved by using the ".pause" action to
 # pause mkhd hotkey processing, synthesize the key press, then re-enable mkhd again.
 ctrl - k .synthkey(alt - k)
-ctrl + shift - k .macro [ .pause .synthkey(alt - k) .continue ]
+ctrl + shift - k .macro [ .pause .synthkey(alt - k) .resume ]
 # "ctrl - k" will behave like "alt - k" in the previous rule. (inputs "hello")
 # "ctrl + shift - k" should produce the symbol '˚'(the behaviour of vanilla "alt - k"),
 # without triggering the "alt - k" hotkey binding above.
 # 
 # NOTE: a non-recursive version of alt - k binding above is like this:
-# alt - k .macro [ .pause .k(h).k(e).k(l).k(l).k(o) .continue ]
+# alt - k .macro [ .pause .k(h).k(e).k(l).k(l).k(o) .resume ]
 
 ###################
 #   General options that configure the behaviour of mkhd

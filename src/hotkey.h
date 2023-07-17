@@ -70,8 +70,8 @@ enum action_type {
 	Action_Macro,	 // execute multiple actions (sequentially, but keep in mind that Action_Commands are asynchronous)
 	Action_SynthKey, // synthesize a key event.
 
-	Action_Pause,	 // disable key event listening temporarily. usually used with macros and Action_SynthKey.
-	Action_Continue, // re-enable mkhd key event listening.
+	Action_Pause,  // disable key event listening temporarily. usually used with macros and Action_SynthKey.
+	Action_Resume, // re-enable mkhd key event listening.
 };
 
 struct action {

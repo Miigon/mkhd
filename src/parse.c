@@ -80,7 +80,7 @@ static struct action *parse_action(struct parser *parser) {
 			{"nocapture", Action_Nocapture},	 // do nothing and do not capture the key press
 												 // let system do it's thing with it like normal
 			{"pause", Action_Pause},
-			{"continue", Action_Continue},
+			{"resume", Action_Resume},
 		};
 
 		DEFVAR_FROM_TOKEN_TEXT(option, token);

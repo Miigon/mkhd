@@ -203,8 +203,8 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 		mkhd_event_tap_set_enabled(false);
 		return true;
 	}
-	case Action_Continue: {
-		ddebug("mkhd: continue event tap\n");
+	case Action_Resume: {
+		ddebug("mkhd: resume event tap\n");
 		mkhd_event_tap_set_enabled(true);
 		return true;
 	}
