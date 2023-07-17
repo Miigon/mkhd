@@ -66,11 +66,15 @@ enum action_type {
 						// (default behaviour of unmatched keys in any layers.)
 						// once an event falls through the lowest layer, it behaves like a
 						// Nocapture and registers as a regular key press.
+	Action_Macro,
 };
 
 struct action {
 	enum action_type type;
-	const char *argument;
+	union {
+		const char *str;		 // Command, PushLayer, PushLayerOneshot
+		struct action **actions; // Macro
+	} argument;
 };
 
 enum keyevent_type {

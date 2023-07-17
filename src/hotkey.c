@@ -115,9 +115,9 @@ static inline struct action *find_process_action(struct hotkey *hotkey, const ch
 	return result;
 }
 
-static struct action action_fallthrough = {.type = Action_Fallthrough, .argument = NULL};
-static struct action action_noop = {.type = Action_NoOp, .argument = NULL};
-static struct action action_nocapture = {.type = Action_Nocapture, .argument = NULL};
+static struct action action_fallthrough = {.type = Action_Fallthrough, .argument = {NULL}};
+static struct action action_noop = {.type = Action_NoOp, .argument = {NULL}};
+static struct action action_nocapture = {.type = Action_Nocapture, .argument = {NULL}};
 
 // @pseudo_keys like @unmatched, @enter_layer, @exit_layer. See `enum keyevent_type`.
 static struct action *find_pseudo_keyevent(struct layer *layer, enum keyevent_type type) {
@@ -151,8 +151,8 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 	case Action_NoOp:
 		return true; // capture
 	case Action_Command:
-		fork_and_exec(action->argument);
-		ddebug("mkhd: cmd: %s\n", action->argument);
+		fork_and_exec(action->argument.str);
+		ddebug("mkhd: cmd: %s\n", action->argument.str);
 		return true; // capture
 	case Action_Nocapture:
 		return false; // no capture
@@ -171,7 +171,7 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 				 mstate->layerstack[LAYERSTACK_MAX - 1].l->name);
 			return false; // no capture
 		}
-		struct layer *new_layer = table_find(&mstate->layer_map, action->argument);
+		struct layer *new_layer = table_find(&mstate->layer_map, action->argument.str);
 		MS_CURRENT_LAYER(mstate) = (struct layerstack_frame){
 			.l = new_layer,
 			.oneshot = (action->type == Action_PushLayerOneshot),
@@ -185,6 +185,14 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 		// `.deactivate` is relative to the current fallthrough level and pops everything above(including current).
 		recursive_layer_pop(mstate, mstate->layerstack_cnt - in_layer);
 		return true; // capture
+	case Action_Macro: {
+		bool capture = false;
+		for (int i = 0; i < buf_len(action->argument.actions); i++) {
+			ddebug("execute action #%d out of %d in macro\n", i, buf_len(action->argument.actions));
+			capture = execute_action(mstate, action->argument.actions[i], in_layer) || capture;
+		}
+		return capture;
+	}
 	default:
 		warn("mkhd: unknown action %d\n", action->type);
 		return false;

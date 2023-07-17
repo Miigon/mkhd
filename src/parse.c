@@ -59,14 +59,15 @@ static bool parser_match_action(struct parser *parser) {
 static struct action *parse_action(struct parser *parser) {
 	struct token token = parser_previous(parser);
 	struct action *action = tr_malloc(sizeof(struct action));
+	memset(action, 0, sizeof(struct action));
 	action->type = Action_NoOp;
 
 	debug("\taction: ");
 
 	if (token.type == Token_Command) {
 		action->type = Action_Command;
-		action->argument = copy_string_count_malloc(token.text, token.length);
-		debug("[cmd]: '%s'\n", action->argument);
+		action->argument.str = copy_string_count_malloc(token.text, token.length);
+		debug("[cmd]: '%s'\n", action->argument.str);
 	} else if (token.type == Token_Option) {
 		DEFVAR_FROM_TOKEN_TEXT(option, token);
 		bool activate_oneshot = strcmp(option, "oneshot") == 0;
@@ -79,8 +80,8 @@ static struct action *parse_action(struct parser *parser) {
 					return action;
 				}
 				action->type = activate_oneshot ? Action_PushLayerOneshot : Action_PushLayer;
-				action->argument = copy_string_count_malloc(layer_token.text, layer_token.length);
-				debug("[activate]|%s\n", action->argument);
+				action->argument.str = copy_string_count_malloc(layer_token.text, layer_token.length);
+				debug("[activate]|%s\n", action->argument.str);
 			} else {
 				parser_report_error(parser, parser_peek(parser), "expected layer\n");
 			}
@@ -101,6 +102,19 @@ static struct action *parse_action(struct parser *parser) {
 			// let system do it's thing with it like normal
 			action->type = Action_Nocapture;
 			debug("[nocapture]\n");
+		} else if (strcmp(option, "macro") == 0) {
+			action->type = Action_Macro;
+			debug("[macro]\n");
+			if (parser_match(parser, Token_BeginList)) {
+				while (parser_match_action(parser)) {
+					buf_push(action->argument.actions, parse_action(parser));
+				}
+				if (!parser_match(parser, Token_EndList)) {
+					parser_report_error(parser, parser_peek(parser), "']' expected");
+				}
+			} else {
+				parser_report_error(parser, parser_peek(parser), "'[' expected");
+			}
 		} else {
 			parser_report_error(parser, token, "invalid option as action: .%s\n", option);
 		}
