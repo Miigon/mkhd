@@ -54,8 +54,8 @@ extern CGError CGSRegisterNotifyProc(void *handler, uint32_t type, void *context
 #define SERVICE_STOP_OPT "--stop-service"
 
 #define MAJOR 0
-#define MINOR 3
-#define PATCH 9
+#define MINOR 1
+#define PATCH 0
 
 // semi-automatic memory management
 // pointers allocated within each context can be freed all at once

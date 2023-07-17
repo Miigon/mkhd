@@ -1,0 +1,249 @@
+# example mkhd configuration
+# shows the basic usage of mkhd. copy this file to ~/.mkhdrc and edit as needed.
+
+# for anyone new to mkhd, before putting this in your home folder:
+# it's recommended to run this in the terminal with `mkhd -v -c ./examples/mkhdrc` to understand what exactly each
+# rules and features do. (this enables verbose mode and enables you to see stdout more easily.)
+
+
+###################
+#  basic actions & binding
+###################
+
+# a basic binding rule definition is structured like this:
+#
+# [layer] <key> <action>
+# 
+# layer: (optional) specifies the layer that the binding is on.
+#        if omitted, will default to the "|default" layer.
+#
+# key:   a key combination on the keyboard. can contain one non-modifier key and multiple modifiers.
+#        syntax: "mod1 + mod2 + mod3 - key"
+#
+# action: two kinds of action is allowed here: commands, and options.
+#          - commands: start with ':' and ends with a newline.
+#                      bind the key to executing the command in a new shell
+#          - options: start with '.' and are special actions.
+#                     used to control the behaviour of layers or mkhd itself
+#                     see more below.
+# example actions:
+#   : echo "hello,world"
+#   : open -a Messages.app
+#   .activate |new_layer
+#   .deactivate
+#   .nop
+
+# command
+e: open -a Terminal.app
+ctrl - e : open -a Terminal.app
+ctrl + cmd - e : open -a Terminal.app
+cmd + shift - e : open -a Terminal.app
+
+# possible modifiers:
+# alt, lalt, ralt, shift, lshift, rshift, cmd, lcmd
+# rcmd, ctrl, lctrl, rctrl, fn, nx
+# 
+# NOTE(skhd): 'hyper' and 'meh' is removed in mkhd.
+# if your keymap uses them, define them as aliases:
+.alias $hyper cmd + alt + shift + ctrl
+.alias $meh ctrl + shift + alt
+# more about key aliases later.
+
+###################
+#  using aliases
+###################
+
+# alias as modifier
+.alias $hyper cmd + alt + ctrl
+$hyper - t : open -a Terminal.app
+
+# alias as key
+.alias $capslock nx - 0x4
+ctrl - $capslock : open -a Notes.app
+# note: mkhd actually has capslock key builtin. (ctrl - capslock : open -a Notes.app)
+#       this is just for demonstration.
+
+# alias as mod-key
+.alias $exclamation_mark shift - 1
+$hyper - $exclamation_mark : open -a "System Preferences.app"
+
+# alias within alias
+.alias $terminal_key $hyper + shift - t
+$terminal_key : open -a Terminal.app
+
+###################
+#  layers
+###################
+
+# compared to the mode-based design of skhd, which only one mode can be activated at any given time,
+# mkhd utilizes a layer-based design, where a layer stack keeps track of all the layers that are ever activated
+# and finds appropriate action(s) for a key press from the layer stack in a top-to-bottom fasion.
+#
+# mkhd's layer mechanism works similar to layers in popular custom keyboard firmwares (QMK, ZMK, etc)
+# 
+# IMPORTANT NOTE: for this section, it's recommended to run `mkhd -v -c ./examples/mkhdrc` in the terminal
+#       to better see how the layers change.
+
+# all layer names start with a '|' and can be used without explicitly definition.
+# layers are activated by `.activate <layer>` action.
+ctrl - f .activate |foo
+
+# define bindings in layer |foo
+|foo ctrl - e : open -a Notes.app   # override the default layer "ctrl-e" behaviour of opening Terminal.app
+|foo escape .deactivate             # press escape while |foo is active to pop back to default layer
+# note that this action (.deactivate) is relative to the layer it triggers from and is cascading. 
+# meaning pressing escape deactivates not only the |foo layer itself but also all the layers activated after |foo
+#
+# example:
+# 1. layer stack before: `|default -> |foo -> |bar -> |some_layer -> |some_other_layer`
+# 2. presses escape key, triggering `|foo escape .deactivate` (assuming none of the other layers defined any rule for escape)
+# 3. layer stack after:  `|default` (everything after |foo, including |foo itself, all got deactivated.)
+# 
+# `.activate` also has similar behaviour where it deactivates all higher layers (if any) before activaing the new layer.
+
+# anything else not overridden in |foo will be processed by the default layer (fallthrough behaviour)
+# this is the same as a implicitly defined rule like this:
+#
+# |foo @unmatched .fallthrough
+#
+# you can override the default fallthrough behaviour by binding @unmatched to `.nop` instead of `.fallthrough`
+# this will capture anything unmatched and do nothing with them. (will "eat" the key press) 
+
+|foo f .activate |bar           # pressing f again in |foo activates bar
+|bar escape .deactivate
+
+|bar t : open -a Terminal.app
+|bar n : open -a Notes.app
+|bar @unmatched .nop                # this makes any key other than t, n and ESC unresponsive while |bar is active.
+                                    # press escape to deactivate layer |bar.
+
+### simulating skhd mode behaviours
+
+# if you like the simpler skhd mode hehaviour, the recommended way to simulate that in mkhd is
+# by binding every mode switching keys in default layer.
+
+ctrl - 1 .activate |mode1
+ctrl - 2 .activate |mode2
+ctrl - 3 .activate |mode3
+ctrl - 4 .activate |mode4
+
+# pressing escape in any of these layers deactivates that layer and goes back to |default
+|mode1,|mode2,|mode3,|mode4 escape .deactivate
+
+# bind something to test it out
+|mode1 a : echo a in mode1
+|mode2 a : echo a in mode2
+|mode3 a : echo a in mode3
+|mode4 a : echo a in mode4
+
+# then you can switch between modes by using ctrl + [1234], even when you are already in a |modeX layer!
+# this works because ctrl+[1234] will be a unmatched key in these layers, and the default behaviour is for unmatched
+# keys to fallthrough to the lower layer to process (which is the default layer), triggering the `.activate` there.
+# because `.activate` automatically deactivates any higher layer before activating the new layer, the old |modeX will
+# be automatically deactivated before switching to the new |modeX layer.
+
+# a trick to make a mode switch key that activates modes one after the another:
+# use .macro and .deactivate to pop itself before activating the new layer
+# without the `.deactivate`, the layer stack would get higher and higher and eventually overflow.
+ctrl - 0 .activate |mode1
+|mode1 ctrl - 0 .macro [.deactivate .activate |mode2]
+|mode2 ctrl - 0 .macro [.deactivate .activate |mode3]
+|mode3 ctrl - 0 .macro [.deactivate .activate |mode4]
+|mode4 ctrl - 0 .macro [.deactivate .activate |mode1]
+
+###################
+#  pseudo keys (special events)
+###################
+# these are `<key>` that starts with a '@' 
+# triggered in special occasions.
+
+# execute on keydown/keyup
+@keydown(ctrl - a) : open -a Terminal.app
+@keyup(ctrl - a) : open -a Notes.app
+
+# entering and exiting layers
+|foo @enter_layer : echo entering foo
+|foo @exit_layer : echo exiting foo
+
+# on unmatched keys in a specific layer
+|foo2 @unmatched .fallthrough # if a key is not matched by a rule in this layer, pass it to the next layer in the layer stack
+|foo3 @unmatched .nop # if a key is not matched by a rule in this layer, toss it out like it never happened. (disables all non-hotkey keys)
+|foo4 @unmatched .deactivate # if a key is not matched by a rule in this layer, disable the current layer.
+
+###################
+#  macros & synthesize keys
+###################
+
+# .macro [ <action> <action> ... ]
+#
+# bind a key to multiple actions
+# note that although these actions are executed sequentially,
+# because mkhd runs commands asynchronously
+# (starts the next one without waiting for the previous one to finish),
+# there's no guarantee that commands in a macro will be run at any specific order.
+
+# Calculator.app is not guaranteed to open before Home.app
+ctrl - h .macro [
+	: open -a Calculator.app
+	: open -a Home.app
+]
+
+### synthesize key press
+# this action replaces the `skhd -k` commands and is the preferred way of synthesizing keys in mkhd.
+# syntax: (the parentheses are optional)
+#   .synthkey <key>
+#   .synthkey(<key>)
+#   .k <key>
+#   .k(<key>)
+ctrl - j .macro [
+	.synthkey h
+	.synthkey e
+	.synthkey l
+	.synthkey l
+	.synthkey o
+]
+
+# use the short-hand .k and write it in one line.
+alt - k .macro [ .k(h).k(e).k(l).k(l).k(o) ]
+# NOTE: if your goal is to input text rather than to simulate key press, please use this:
+# alt - k : mkhd -t "some text"
+# this has the advantage of supporting unicode texts.
+
+#
+# synthesize keys non-recursively (noremap-like behaviour)
+#
+# by default, key presses synthesized by mkhd will be re-routed back into mkhd
+# for hotkey processing.
+# sometimes, one might wish to synthesize the raw key presses without it being
+# treated like a hotkey. this can be achieved by using the ".pause" action to
+# pause mkhd hotkey processing, synthesize the key press, then re-enable mkhd again.
+ctrl - k .synthkey(alt - k)
+ctrl + shift - k .macro [ .pause .synthkey(alt - k) .continue ]
+# "ctrl - k" will behave like "alt - k" in the previous rule. (inputs "hello")
+# "ctrl + shift - k" should produce the symbol '˚'(the behaviour of vanilla "alt - k"),
+# without triggering the "alt - k" hotkey binding above.
+# 
+# NOTE: a non-recursive version of alt - k binding above is like this:
+# alt - k .macro [ .pause .k(h).k(e).k(l).k(l).k(o) .continue ]
+
+###################
+#   General options that configure the behaviour of mkhd
+###################
+
+# specify a file that should be included as an additional config-file.
+# treated as an absolutepath if the filename begins with '/' otherwise
+# the file is relative to the path of the config-file it was loaded from.
+
+# .load "/Users/Koe/.config/partial_mkhdrc"
+# .load "partial_mkhdrc"
+
+# prevents mkhd from monitoring events for listed processes.
+
+# .blocklist [
+#     "terminal"
+#     "qutebrowser"
+#     "kitty"
+#     "google chrome"
+# ]
+
+# notice the keyword is now .*block*list. remember to change it when migrating your config from skhd.

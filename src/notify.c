@@ -4,7 +4,7 @@
 void notify_init(void) {
 	class_replaceMethod(objc_getClass("NSBundle"), sel_registerName("bundleIdentifier"),
 						method_getImplementation((void *)^{
-						  return CFSTR("com.koekeishiya.mkhd");
+						  return CFSTR("net.miigon.mkhd");
 						}),
 						NULL);
 }
