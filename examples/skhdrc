@@ -99,7 +99,7 @@
 
 # prevent skhd from monitoring events for specific applications.
 #
-# .blacklist [
+# .blocklist [
 #    "kitty"
 #    "terminal"
 #    "qutebrowser"

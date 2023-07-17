@@ -379,17 +379,17 @@ static void parse_hotkey(struct parser *parser) {
 	debug("}\n");
 }
 
-void parse_option_blacklist(struct parser *parser) {
+void parse_option_blocklist(struct parser *parser) {
 	if (parser_match(parser, Token_String)) {
 		struct token name_token = parser_previous(parser);
 		char *name = copy_string_count_malloc(name_token.text, name_token.length);
 		for (char *s = name; *s; ++s)
 			*s = tolower(*s);
 		debug("\t%s\n", name);
-		table_add(parser->blacklst, name, name);
-		parse_option_blacklist(parser);
+		table_add(parser->blocklst, name, name);
+		parse_option_blocklist(parser);
 	} else if (parser_match(parser, Token_EndList)) {
-		if (parser->blacklst->count == 0) {
+		if (parser->blocklst->count == 0) {
 			parser_report_error(parser, parser_previous(parser), "list must contain at least one value\n");
 		}
 	} else {
@@ -435,10 +435,10 @@ void parse_option_alias(struct parser *parser) {
 void parse_option(struct parser *parser) {
 	parser_match(parser, Token_Option);
 	struct token option = parser_previous(parser);
-	if (token_equals(option, "blacklist")) {
+	if (token_equals(option, "blocklist")) {
 		if (parser_match(parser, Token_BeginList)) {
-			debug("blacklist :: #%d {\n", option.line);
-			parse_option_blacklist(parser);
+			debug("blocklist :: #%d {\n", option.line);
+			parse_option_blocklist(parser);
 			debug("}\n");
 		} else {
 			parser_report_error(parser, option, "expected '[' followed by list of process names\n");
@@ -616,7 +616,7 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 		struct load_directive load = parser->load_directives[i];
 
 		struct parser directive_parser;
-		if (parser_init(&directive_parser, parser->layer_map, parser->blacklst, parser->alias_map, load.file)) {
+		if (parser_init(&directive_parser, parser->layer_map, parser->blocklst, parser->alias_map, load.file)) {
 			if (!thwart_hotloader) {
 				hotloader_add_file(hotloader, load.file);
 			}
@@ -636,14 +636,14 @@ void parser_do_directives(struct parser *parser, struct hotloader *hotloader, bo
 	buf_free(parser->load_directives);
 }
 
-bool parser_init(struct parser *parser, struct table *layer_map, struct table *blacklst, struct table *alias_map,
+bool parser_init(struct parser *parser, struct table *layer_map, struct table *blocklst, struct table *alias_map,
 				 char *file) {
 	memset(parser, 0, sizeof(struct parser));
 	char *buffer = read_file(file);
 	if (buffer) {
 		parser->file = file;
 		parser->layer_map = layer_map;
-		parser->blacklst = blacklst;
+		parser->blocklst = blocklst;
 		parser->alias_map = alias_map;
 		tokenizer_init(&parser->tokenizer, buffer);
 		parser_advance(parser);

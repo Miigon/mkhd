@@ -77,7 +77,7 @@ static struct hotloader hotloader; // uses memctx_mstate
 
 static void init_mstate(struct mkhd_state *mstate) {
 	table_init(&g_mstate->layer_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
-	table_init(&g_mstate->blacklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
+	table_init(&g_mstate->blocklst, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
 	table_init(&g_mstate->alias_map, 13, (table_hash_func)hash_string, (table_compare_func)compare_string);
 
 	// initialize default layer.
@@ -104,7 +104,7 @@ static void load_config(char *absolutepath) {
 	init_mstate(g_mstate);
 
 	struct parser parser;
-	if (parser_init(&parser, &g_mstate->layer_map, &g_mstate->blacklst, &g_mstate->alias_map, absolutepath)) {
+	if (parser_init(&parser, &g_mstate->layer_map, &g_mstate->blocklst, &g_mstate->alias_map, absolutepath)) {
 		if (!thwart_hotloader) {
 			hotloader_end(&hotloader);
 			hotloader_add_file(&hotloader, absolutepath);
@@ -250,7 +250,7 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 		CGEventTapEnable(event_tap->handle, 1);
 	} break;
 	case kCGEventKeyDown: {
-		if (table_find(&g_mstate->blacklst, carbon.process_name))
+		if (table_find(&g_mstate->blocklst, carbon.process_name))
 			return event;
 
 		BEGIN_TIMED_BLOCK("handle_keydown");
@@ -261,7 +261,7 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 			return NULL;
 	} break;
 	case kCGEventKeyUp: {
-		if (table_find(&g_mstate->blacklst, carbon.process_name))
+		if (table_find(&g_mstate->blocklst, carbon.process_name))
 			return event;
 
 		BEGIN_TIMED_BLOCK("handle_keyup");
@@ -272,7 +272,7 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 			return NULL;
 	} break;
 	case NX_SYSDEFINED: {
-		if (table_find(&g_mstate->blacklst, carbon.process_name))
+		if (table_find(&g_mstate->blocklst, carbon.process_name))
 			return event;
 
 		struct keyevent eventkey;

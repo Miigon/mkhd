@@ -135,7 +135,7 @@ General options that configure the behaviour of mkhd:
 
 # prevents mkhd from monitoring events for listed processes.
 
-.blacklist [
+.blocklist [
     "terminal"
     "qutebrowser"
     "kitty"

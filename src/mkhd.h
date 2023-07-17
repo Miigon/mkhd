@@ -7,7 +7,7 @@
 
 struct mkhd_state {
 	struct table layer_map;
-	struct table blacklst;
+	struct table blocklst;
 	struct table alias_map;
 
 	// keeps track of the history of `|>` layer switches.
