@@ -69,7 +69,30 @@ static struct action *parse_action(struct parser *parser) {
 		action->argument.str = copy_string_count_malloc(token.text, token.length);
 		debug("[cmd]: '%s'\n", action->argument.str);
 	} else if (token.type == Token_Option) {
+		static struct {
+			const char *option;
+			enum action_type type;
+		} plain_options[] = {
+			// options without any arguments.
+			{"deactivate", Action_PopLayer},	 // pops current layer from the layer stack
+			{"fallthrough", Action_Fallthrough}, // passthrough to the layer below in the layer stack
+			{"nop", Action_NoOp},				 // capture the key press and do nothing
+			{"nocapture", Action_Nocapture},	 // do nothing and do not capture the key press
+												 // let system do it's thing with it like normal
+			{"pause", Action_Pause},
+			{"continue", Action_Continue},
+		};
+
 		DEFVAR_FROM_TOKEN_TEXT(option, token);
+		for (int i = 0; i < array_count(plain_options); i++) {
+			if (strcmp(option, plain_options[i].option) == 0) {
+				action->type = plain_options[i].type;
+				debug("[%s]\n", plain_options[i].option);
+				return action;
+			}
+		}
+
+		// options with arguments.
 		bool activate_oneshot = strcmp(option, "oneshot") == 0;
 		if (activate_oneshot || strcmp(option, "activate") == 0) {
 			// activate a new layer
@@ -85,23 +108,6 @@ static struct action *parse_action(struct parser *parser) {
 			} else {
 				parser_report_error(parser, parser_peek(parser), "expected layer\n");
 			}
-		} else if (strcmp(option, "deactivate") == 0) {
-			// pops current layer from the layer stack
-			action->type = Action_PopLayer;
-			debug("[layerswitch]!default\n");
-		} else if (strcmp(option, "fallthrough") == 0) {
-			// passthrough to the layer below in the layer stack
-			action->type = Action_Fallthrough;
-			debug("[pass]|.fallthrough\n");
-		} else if (strcmp(option, "nop") == 0) {
-			// capture the key press and do nothing
-			action->type = Action_NoOp; // default behaviour is capture already, so do nothing
-			debug("[nop]\n");
-		} else if (strcmp(option, "nocapture") == 0) {
-			// do nothing and do not capture the key press
-			// let system do it's thing with it like normal
-			action->type = Action_Nocapture;
-			debug("[nocapture]\n");
 		} else if (strcmp(option, "macro") == 0) {
 			action->type = Action_Macro;
 			debug("[macro]\n");
@@ -114,6 +120,14 @@ static struct action *parse_action(struct parser *parser) {
 				}
 			} else {
 				parser_report_error(parser, parser_peek(parser), "'[' expected");
+			}
+		} else if (strcmp(option, "synthkey") == 0 || strcmp(option, "k") == 0) {
+			action->type = Action_SynthKey;
+			debug("[synthkey]\n");
+			struct keyevent *keyevent = malloc(sizeof(struct keyevent));
+			memset(keyevent, 0, sizeof(struct keyevent));
+			if (parse_keyevent(parser, keyevent, true)) {
+				action->argument.keyevent = keyevent;
 			}
 		} else {
 			parser_report_error(parser, token, "invalid option as action: .%s\n", option);

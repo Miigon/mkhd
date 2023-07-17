@@ -4,6 +4,7 @@
 #include "log.h"
 #include "mkhd.h"
 #include "sbuffer.h"
+#include "synthesize.h"
 #include "tr_malloc.h"
 #include "utils.h"
 
@@ -192,6 +193,20 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 			capture = execute_action(mstate, action->argument.actions[i], in_layer) || capture;
 		}
 		return capture;
+	}
+	case Action_SynthKey: {
+		synthesize_key(action->argument.keyevent);
+		return true;
+	}
+	case Action_Pause: {
+		ddebug("mkhd: paused event tap\n");
+		mkhd_event_tap_set_enabled(false);
+		return true;
+	}
+	case Action_Continue: {
+		ddebug("mkhd: continue event tap\n");
+		mkhd_event_tap_set_enabled(true);
+		return true;
 	}
 	default:
 		warn("mkhd: unknown action %d\n", action->type);

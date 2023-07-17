@@ -2,5 +2,8 @@
 
 #include <stdbool.h>
 
-bool synthesize_key(char *key_string);
+struct keyevent;
+
+bool synthesize_key(struct keyevent *keyevent);
+bool parse_and_synthesize_key(char *key_string);
 void synthesize_text(char *text);

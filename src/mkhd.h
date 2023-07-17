@@ -3,6 +3,8 @@
 #include "hashtable.h"
 #include "hotkey.h"
 
+#include <stdbool.h>
+
 #define LAYERSTACK_MAX 5
 
 struct mkhd_state {
@@ -20,3 +22,5 @@ struct mkhd_state {
 #define MS_CURRENT_LAYER(mstate) ((mstate)->layerstack[(mstate)->layerstack_cnt - 1])
 
 #define DEFAULT_LAYER "default"
+
+void mkhd_event_tap_set_enabled(bool enabled);

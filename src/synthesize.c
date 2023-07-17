@@ -36,7 +36,24 @@ static inline void synthesize_modifiers(struct keyevent *key, bool pressed) {
 	}
 }
 
-bool synthesize_key(char *key_string) {
+bool synthesize_key(struct keyevent *keyevent) {
+	CGSetLocalEventsSuppressionInterval(0.0f);
+	CGEnableEventStateCombining(false);
+
+	if (keyevent->type == Event_Key || keyevent->type == Event_KeyDown) {
+		synthesize_modifiers(keyevent, true);
+		create_and_post_keyevent(keyevent->key, true);
+	}
+
+	if (keyevent->type == Event_Key || keyevent->type == Event_KeyUp) {
+		synthesize_modifiers(keyevent, false);
+		create_and_post_keyevent(keyevent->key, false);
+	}
+
+	return true;
+}
+
+bool parse_and_synthesize_key(char *key_string) {
 	if (!initialize_keycode_map())
 		return false;
 
@@ -56,15 +73,7 @@ bool synthesize_key(char *key_string) {
 		}
 	}
 
-	CGSetLocalEventsSuppressionInterval(0.0f);
-	CGEnableEventStateCombining(false);
-
-	synthesize_modifiers(&keyevent, true);
-	create_and_post_keyevent(keyevent.key, true);
-
-	create_and_post_keyevent(keyevent.key, false);
-	synthesize_modifiers(&keyevent, false);
-	return true;
+	return synthesize_key(&keyevent);
 }
 
 void synthesize_text(char *text) {

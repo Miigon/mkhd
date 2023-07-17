@@ -66,14 +66,20 @@ enum action_type {
 						// (default behaviour of unmatched keys in any layers.)
 						// once an event falls through the lowest layer, it behaves like a
 						// Nocapture and registers as a regular key press.
-	Action_Macro,
+
+	Action_Macro,	 // execute multiple actions (sequentially, but keep in mind that Action_Commands are asynchronous)
+	Action_SynthKey, // synthesize a key event.
+
+	Action_Pause,	 // disable key event listening temporarily. usually used with macros and Action_SynthKey.
+	Action_Continue, // re-enable mkhd key event listening.
 };
 
 struct action {
 	enum action_type type;
 	union {
-		const char *str;		 // Command, PushLayer, PushLayerOneshot
-		struct action **actions; // Macro
+		const char *str;		   // Command, PushLayer, PushLayerOneshot
+		struct action **actions;   // Macro
+		struct keyevent *keyevent; // Action_SynthKey
 	} argument;
 };
 

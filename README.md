@@ -12,6 +12,9 @@ When running as a service (through launchd) log files can be found at `/tmp/mkhd
 
 new features compared to skhd:
  - layers, layer-based hotkey engine
+ - custom key alias support
+ - macro support
+ - builtin synthesize key support with hotkey passthrough (noremap-like behaviour)
  - binding to both keydown and keyup
  - better code quality, memory safety, extensibility and more...
 

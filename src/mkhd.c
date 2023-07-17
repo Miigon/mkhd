@@ -241,6 +241,8 @@ static bool process_keyup(struct keyevent eventkey) {
 	return false;
 }
 
+void mkhd_event_tap_set_enabled(bool enabled) { CGEventTapEnable(event_tap.handle, enabled); }
+
 static EVENT_TAP_CALLBACK(key_handler_impl) {
 	switch (type) {
 	case kCGEventTapDisabledByTimeout:
@@ -418,7 +420,7 @@ static bool parse_arguments(int argc, char **argv) {
 			thwart_hotloader = true;
 		} break;
 		case 'k': {
-			if (!synthesize_key(optarg)) {
+			if (!parse_and_synthesize_key(optarg)) {
 				exit(EXIT_FAILURE);
 			}
 			return true;
