@@ -126,8 +126,14 @@ static struct action *parse_action(struct parser *parser) {
 			debug("[synthkey]\n");
 			struct keyevent *keyevent = malloc(sizeof(struct keyevent));
 			memset(keyevent, 0, sizeof(struct keyevent));
+			// .synthkey and .k can have an optional ()
+			bool bracket_found = parser_match(parser, Token_BracketLeft);
 			if (parse_keyevent(parser, keyevent, true)) {
 				action->argument.keyevent = keyevent;
+			}
+			if (bracket_found && !parser_match(parser, Token_BracketRight)) {
+				parser_report_error(parser, parser_peek(parser), "expected )\n");
+				return false;
 			}
 		} else {
 			parser_report_error(parser, token, "invalid option as action: .%s\n", option);
@@ -268,10 +274,9 @@ static void parse_key_literal(struct parser *parser, struct keyevent *keyevent) 
 }
 
 static enum hotkey_flag modifier_flags_value[] = {
-	Hotkey_Flag_Alt,	Hotkey_Flag_LAlt,	 Hotkey_Flag_RAlt,	   Hotkey_Flag_Shift,
-	Hotkey_Flag_LShift, Hotkey_Flag_RShift,	 Hotkey_Flag_Cmd,	   Hotkey_Flag_LCmd,
-	Hotkey_Flag_RCmd,	Hotkey_Flag_Control, Hotkey_Flag_LControl, Hotkey_Flag_RControl,
-	Hotkey_Flag_Fn,		Hotkey_Flag_Hyper,	 Hotkey_Flag_Meh,	   Hotkey_Flag_NX,
+	Hotkey_Flag_Alt,	  Hotkey_Flag_LAlt,		Hotkey_Flag_RAlt, Hotkey_Flag_Shift, Hotkey_Flag_LShift,
+	Hotkey_Flag_RShift,	  Hotkey_Flag_Cmd,		Hotkey_Flag_LCmd, Hotkey_Flag_RCmd,	 Hotkey_Flag_Control,
+	Hotkey_Flag_LControl, Hotkey_Flag_RControl, Hotkey_Flag_Fn,	  Hotkey_Flag_NX,
 };
 
 #define INVALID_KEY UINT32_MAX
@@ -499,7 +504,8 @@ bool parse_config(struct parser *parser) {
 
 		if (parser_check(parser, Token_Identifier) || parser_check(parser, Token_Modifier) ||
 			parser_check(parser, Token_Literal) || parser_check(parser, Token_Key_Hex) ||
-			parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Layer)) {
+			parser_check(parser, Token_Key) || parser_check(parser, Token_Alias) || parser_check(parser, Token_Layer) ||
+			parser_check(parser, Token_Event)) {
 			parse_hotkey(parser);
 		} else if (parser_check(parser, Token_Option)) {
 			parse_option(parser);
