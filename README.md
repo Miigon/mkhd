@@ -37,7 +37,7 @@ Requires xcode-8 command-line tools.
 
 ## Configuration
 
-**Please checkout [examples/mkhdrc](https://github.com/miigon/mkhd/blob/master/examples/mkhdrc) for a example configurations, as well as explanations of mkhd features.**
+**Please checkout [examples/mkhdrc](https://github.com/miigon/mkhd/blob/main/examples/mkhdrc) for a example configurations, as well as explanations of mkhd features.**
 
 The default configuration file is located at one of the following places (in order):
 
