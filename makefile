@@ -8,7 +8,7 @@ DEPS           = $(HEADER)
 OBJS           = $(patsubst %.c,$(OBJ_PATH)/%.o,$(SRC))
 BINS           = $(BUILD_PATH)/mkhd
 
-DEBUG_FLAGS ?= -g -O0
+DEBUG_FLAGS ?= -g -O0 -fsanitize=address
 CFLAGS = -std=c99 -Wall $(DEBUG_FLAGS)
 LDFLAGS = -framework Cocoa -framework Carbon -framework CoreServices
 
