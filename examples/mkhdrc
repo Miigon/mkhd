@@ -177,12 +177,7 @@ ctrl - 0 .activate |mode1
 # .macro [ <action> <action> ... ]
 #
 # bind a key to multiple actions
-# note that although these actions are executed sequentially,
-# because mkhd runs commands asynchronously
-# (starts the next one without waiting for the previous one to finish),
-# there's no guarantee that commands in a macro will be run at any specific order.
 
-# Calculator.app is not guaranteed to open before Home.app
 ctrl - h .macro [
 	: open -a Calculator.app
 	: open -a Home.app

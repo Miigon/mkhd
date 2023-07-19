@@ -84,13 +84,16 @@ unsigned long hash_string(char *key) {
 	return hash;
 }
 
-static inline void fork_and_exec(const char *command) {
+static inline void fork_and_exec(const char *command, bool do_wait) {
 	int cpid = fork();
 	if (cpid == 0) {
 		setsid();
 		char *exec[] = {shell, arg, (char *)command, NULL};
 		int status_code = execvp(exec[0], exec);
 		exit(status_code);
+	} else {
+		if (do_wait)
+			waitpid(cpid, NULL, 0);
 	}
 }
 
@@ -152,7 +155,7 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 	case Action_NoOp:
 		return true; // capture
 	case Action_Command:
-		fork_and_exec(action->argument.str);
+		fork_and_exec(action->argument.str, true);
 		ddebug("mkhd: cmd: %s\n", action->argument.str);
 		return true; // capture
 	case Action_Nocapture:
