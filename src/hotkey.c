@@ -197,8 +197,9 @@ bool execute_action(struct mkhd_state *mstate, struct action *action, int in_lay
 		}
 		return capture;
 	}
-	case Action_SynthKey: {
-		synthesize_key(action->argument.keyevent);
+	case Action_SynthKeyRecursive:
+	case Action_SynthKeyNonRecursive: {
+		synthesize_key_list(action->argument.keyevents, (action->type == Action_SynthKeyNonRecursive));
 		return true;
 	}
 	case Action_Pause: {

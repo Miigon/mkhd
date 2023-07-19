@@ -5,6 +5,7 @@
 #include "hotkey.h"
 #include "locale.h"
 #include "log.h"
+#include "mkhd.h"
 #include "parse.h"
 
 #pragma clang diagnostic push
@@ -36,7 +37,7 @@ static inline void synthesize_modifiers(struct keyevent *key, bool pressed) {
 	}
 }
 
-bool synthesize_key(struct keyevent *keyevent) {
+void synthesize_key(struct keyevent *keyevent) {
 	CGSetLocalEventsSuppressionInterval(0.0f);
 	CGEnableEventStateCombining(false);
 
@@ -49,11 +50,22 @@ bool synthesize_key(struct keyevent *keyevent) {
 		synthesize_modifiers(keyevent, false);
 		create_and_post_keyevent(keyevent->key, false);
 	}
-
-	return true;
 }
 
-bool parse_and_synthesize_key(char *key_string) {
+void synthesize_key_list(struct keyevent *keyevents, bool nore) {
+	if (nore) {
+		mkhd_event_tap_set_enabled(false);
+	}
+	while (keyevents->type != Event_Null) {
+		synthesize_key(keyevents);
+		keyevents++;
+	}
+	if (nore) {
+		mkhd_event_tap_set_enabled(true);
+	}
+}
+
+bool parse_and_synthesize_key(char *key_string, bool nore) {
 	if (!initialize_keycode_map())
 		return false;
 
@@ -65,15 +77,13 @@ bool parse_and_synthesize_key(char *key_string) {
 		close(2);
 	}
 
-	struct keyevent keyevent;
-	memset(&keyevent, 0, sizeof(keyevent));
-	if (!parse_keyevent(&parser, &keyevent, false)) {
-		if (parser.error) {
-			return false;
-		}
+	struct keyevent *keyevents = parse_keyevent_list(&parser);
+	if (keyevents == NULL || parser.error) {
+		return false;
 	}
 
-	return synthesize_key(&keyevent);
+	synthesize_key_list(keyevents, nore);
+	return true;
 }
 
 void synthesize_text(char *text) {

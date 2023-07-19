@@ -69,7 +69,7 @@ A list of all built-in modifier and literal keywords can be found [here](https:/
  - `-h` | `--no-hotload`: Disable system for hotloading config file
  - `-k` | `--key`: Synthesize a keypress (same syntax as when defining a hotkey)  
     `mkhd -k "shift + alt - 7"`  
-    **note: this option is deprecated. use `.synthkey` action instead.**
+    **note: this option is deprecated. use `.synthkey`/`.noresynth` action instead.**
  - `-t` | `--text`: Synthesize a line of text  
     `mkhd -t "hello, worldシ"`
     

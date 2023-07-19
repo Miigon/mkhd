@@ -34,8 +34,8 @@
 #   .nop
 
 # command
-e: open -a Terminal.app
 ctrl - e : open -a Terminal.app
+# e: open -a Terminal.app # binding to key without modifier also works
 ctrl + cmd - e : open -a Terminal.app
 cmd + shift - e : open -a Terminal.app
 
@@ -171,7 +171,31 @@ ctrl - 0 .activate |mode1
 |foo4 @unmatched .deactivate # if a key is not matched by a rule in this layer, disable the current layer.
 
 ###################
-#  macros & synthesize keys
+#  synthesize keys
+###################
+
+# this action replaces the `skhd -k` commands and is the preferred way of synthesizing keys in mkhd.
+# syntax: (the parentheses are optional)
+#   .synthkey <key>,<key>,...
+#   .synthkey(<key>,<key>,...)
+#   .noresynth <key>,<key>,...
+#   .noresynth(<key>,<key>,...)
+ctrl - j         .synthkey (cmd - a, cmd - c)
+ctrl + shift - j .noresynth (h,e,l,l,o)
+
+# NOTE: if your goal is to input text rather than to simulate key press, please use this:
+ctrl + cmd - j : mkhd -t "some text"
+# this has the advantage of supporting unicode texts.
+
+# .synthkey: synthesize keys, allow recursive hotkey matching (the synthesized key will be matched against hotkey rules in mkhd)
+# .noresynth: synthesize keys non-recursively (noremap-like behaviour, the synthesized key ignores all rules in mkhd)
+alt - k : echo alt-k pressed!
+ctrl - k .noresynth (alt - k) # will input `˚` (native behaviour of "alt - k") instead of triggering the "alt-k" rule.
+ctrl + shift - k .synthkey (alt - k) # will print "alt-k pressed!"
+
+
+###################
+#  macros
 ###################
 
 # .macro [ <action> <action> ... ]
@@ -180,46 +204,16 @@ ctrl - 0 .activate |mode1
 
 ctrl - h .macro [
 	: open -a Calculator.app
-	: open -a Home.app
+    : sleep 1.5
+    .synthkey (escape,1,2,3)
+    : sleep 0.2
+    .synthkey (shift - 0x18) # `+`
+    : sleep 0.2
+    .synthkey (5)
+    : sleep 0.2
+    .synthkey (return)
 ]
 
-### synthesize key press
-# this action replaces the `skhd -k` commands and is the preferred way of synthesizing keys in mkhd.
-# syntax: (the parentheses are optional)
-#   .synthkey <key>
-#   .synthkey(<key>)
-#   .k <key>
-#   .k(<key>)
-ctrl - j .macro [
-	.synthkey h
-	.synthkey e
-	.synthkey l
-	.synthkey l
-	.synthkey o
-]
-
-# use the short-hand .k and write it in one line.
-alt - k .macro [ .k(h).k(e).k(l).k(l).k(o) ]
-# NOTE: if your goal is to input text rather than to simulate key press, please use this:
-# alt - k : mkhd -t "some text"
-# this has the advantage of supporting unicode texts.
-
-#
-# synthesize keys non-recursively (noremap-like behaviour)
-#
-# by default, key presses synthesized by mkhd will be re-routed back into mkhd
-# for hotkey processing.
-# sometimes, one might wish to synthesize the raw key presses without it being
-# treated like a hotkey. this can be achieved by using the ".pause" action to
-# pause mkhd hotkey processing, synthesize the key press, then re-enable mkhd again.
-ctrl - k .synthkey(alt - k)
-ctrl + shift - k .macro [ .pause .synthkey(alt - k) .resume ]
-# "ctrl - k" will behave like "alt - k" in the previous rule. (inputs "hello")
-# "ctrl + shift - k" should produce the symbol '˚'(the behaviour of vanilla "alt - k"),
-# without triggering the "alt - k" hotkey binding above.
-# 
-# NOTE: a non-recursive version of alt - k binding above is like this:
-# alt - k .macro [ .pause .k(h).k(e).k(l).k(l).k(o) .resume ]
 
 ###################
 #   General options that configure the behaviour of mkhd

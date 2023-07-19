@@ -121,16 +121,14 @@ static struct action *parse_action(struct parser *parser) {
 			} else {
 				parser_report_error(parser, parser_peek(parser), "'[' expected");
 			}
-		} else if (strcmp(option, "synthkey") == 0 || strcmp(option, "k") == 0) {
-			action->type = Action_SynthKey;
-			debug("[synthkey]\n");
-			struct keyevent *keyevent = malloc(sizeof(struct keyevent));
-			memset(keyevent, 0, sizeof(struct keyevent));
+		} else if (strcmp(option, "synthkey") == 0 || strcmp(option, "noresynth") == 0) {
+			bool noresynth = (strcmp(option, "noresynth") == 0);
+			action->type = noresynth ? Action_SynthKeyNonRecursive : Action_SynthKeyRecursive;
+			debug("[%s]\n", option);
 			// .synthkey and .k can have an optional ()
 			bool bracket_found = parser_match(parser, Token_BracketLeft);
-			if (parse_keyevent(parser, keyevent, true)) {
-				action->argument.keyevent = keyevent;
-			}
+			// comma-separated list of keys.
+			action->argument.keyevents = parse_keyevent_list(parser);
 			if (bracket_found && !parser_match(parser, Token_BracketRight)) {
 				parser_report_error(parser, parser_peek(parser), "expected )\n");
 				return false;
@@ -565,6 +563,8 @@ bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow
 		return false;
 	}
 
+	memset(keyevent, 0, sizeof(struct keyevent));
+
 	keyevent->key = INVALID_KEY; // keycode 0 is actually a valid keycode (kVK_ANSI_A)
 
 	if (parser_match(parser, Token_Event)) { // @pseudo_keys
@@ -602,6 +602,26 @@ bool parse_keyevent(struct parser *parser, struct keyevent *keyevent, bool allow
 		keyevent->type = Event_Key;
 		return parse_keycombination(parser, keyevent, allow_no_keycode);
 	}
+}
+
+struct keyevent *parse_keyevent_list(struct parser *parser) {
+	int len = 0;
+	int maxlen = 0;
+	struct keyevent *keyevents = NULL;
+	do {
+		len++;
+		if (len > maxlen) {
+			maxlen = 2 * len;
+			keyevents = tr_realloc(
+				keyevents, (maxlen + 1) * sizeof(struct keyevent)); // + 1 for the Event_Null at the end of the list
+		}
+		if (!parse_keyevent(parser, &keyevents[len - 1], true)) {
+			return NULL;
+		}
+	} while (parser_match(parser, Token_Comma));
+	if (len != 0)
+		keyevents[len].type = Event_Null;
+	return keyevents;
 }
 
 struct token parser_peek(struct parser *parser) { return parser->current_token; }

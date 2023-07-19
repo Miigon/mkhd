@@ -247,7 +247,7 @@ static EVENT_TAP_CALLBACK(key_handler_impl) {
 	switch (type) {
 	case kCGEventTapDisabledByTimeout:
 	case kCGEventTapDisabledByUserInput: {
-		debug("mkhd: restarting event-tap\n");
+		// debug("mkhd: restarting event-tap\n");
 		struct event_tap *event_tap = (struct event_tap *)reference;
 		CGEventTapEnable(event_tap->handle, 1);
 	} break;
@@ -420,7 +420,7 @@ static bool parse_arguments(int argc, char **argv) {
 			thwart_hotloader = true;
 		} break;
 		case 'k': {
-			if (!parse_and_synthesize_key(optarg)) {
+			if (!parse_and_synthesize_key(optarg, false)) {
 				exit(EXIT_FAILURE);
 			}
 			return true;
