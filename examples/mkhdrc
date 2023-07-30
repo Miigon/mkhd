@@ -49,6 +49,14 @@ cmd + shift - e : open -a Terminal.app
 .alias $meh ctrl + shift + alt
 # more about key aliases later.
 
+# process specific binding
+cmd - right [
+  "Google Chrome" .fallthrough # do nothing when in google chrome
+  "Terminal" .nop # do nothing and eat the keypress when in terminal
+  "Firefox" : echo "i'm in firefox!!"
+   * : echo "i'm in anything else except chrome and firefox and terminal"
+]
+
 ###################
 #  using aliases
 ###################
