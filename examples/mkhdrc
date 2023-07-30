@@ -172,6 +172,16 @@ ctrl - 0 .activate |mode1
 # entering and exiting layers
 |foo @enter_layer : echo entering foo
 |foo @exit_layer : echo exiting foo
+# a potential use of this is to combine with yabai and it's boarder feature
+# by changing the boarder color when entering/exiting certain layers, the boarder can be used as a
+# crude layer indicator.
+# eg: 
+|resize @enter_layer : yabai -m config active_window_border_color 0xff88ff88 # green color for resizing mode
+|normal @enter_layer : yabai -m config active_window_border_color 0xff8888ff # blue color for "normal" mode
+
+|resize,|normal # exiting any layer that changes boarder color, changes the boarder color back to the default red. 
+	@exit_layer : yabai -m config active_window_border_color 0xff775759
+
 
 # on unmatched keys in a specific layer
 |foo2 @unmatched .fallthrough # if a key is not matched by a rule in this layer, pass it to the next layer in the layer stack
