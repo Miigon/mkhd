@@ -6,7 +6,7 @@
 #define MAXLEN 512
 
 #define _PATH_LAUNCHCTL "/bin/launchctl"
-#define _NAME_MKHD_PLIST "com.koekeishiya.mkhd"
+#define _NAME_MKHD_PLIST "net.miigon.mkhd"
 #define _PATH_MKHD_PLIST "%s/Library/LaunchAgents/" _NAME_MKHD_PLIST ".plist"
 
 #define _MKHD_PLIST                                                                                                    \
@@ -26,8 +26,6 @@
 	"        <key>PATH</key>\n"                                                                                        \
 	"        <string>%s</string>\n"                                                                                    \
 	"    </dict>\n"                                                                                                    \
-	"    <key>RunAtLoad</key>\n"                                                                                       \
-	"    <true/>\n"                                                                                                    \
 	"    <key>KeepAlive</key>\n"                                                                                       \
 	"    <dict>\n"                                                                                                     \
 	"        <key>SuccessfulExit</key>\n"                                                                              \
@@ -41,8 +39,6 @@
 	"    <string>/tmp/mkhd_%s.err.log</string>\n"                                                                      \
 	"    <key>ProcessType</key>\n"                                                                                     \
 	"    <string>Interactive</string>\n"                                                                               \
-	"    <key>Nice</key>\n"                                                                                            \
-	"    <integer>-20</integer>\n"                                                                                     \
 	"</dict>\n"                                                                                                        \
 	"</plist>"
 
